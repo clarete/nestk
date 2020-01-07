@@ -11,28 +11,73 @@ const MNEMONICS = [
   'TYA',
 ];
 
-const uint8 =
-  s => new Uint8Array(s);
+const CPU6502States = {
+  NotSet: 0,
+  Halt: 1,
+  Running: 2,
+  Step: 3,
+};
 
 class CPU6502 {
-  constructor(bus, program) {
-    // Stuff
+  constructor(bus) {
+    this.a = 0;          // General purpose accumulator
+    this.x = 0;          // Index register
+    this.y = 0;          // Index register
+    this.s = 0;          // Stack pointer
+    this.p = 0;          // Status flags
+    this.pc = 0;         // Program Counter
+
+    // Memory bus
     this.bus = bus;
-    this.program = program;
-    // CPU State
-    this.a = uint8(1);          // General purpose accumulator
-    this.x = uint8(1);          // Index register
-    this.y = uint8(1);          // Index register
-    this.s = uint8(1);          // Stack pointer
-    this.p = uint8(1);          // Status flags
-    this.pc = uint8(2);         // Program Counter
+    // CPU States
+    this.state = CPU6502States.NotSet;
+    // Clock
+    this.cycles = 0;
   }
-}
 
-class PPU {
-}
+  parameter(instr) {
+    switch (instr.addressingMode) {
+    case AddrModes.Implied:
+      return undefined;
+    case AddrModes.Immediate:
+      return this.bus.read(this.pc++);
+    case AddrModes.Absolute:
+      const lo = this.bus.read(this.pc++);
+      const hi = this.bus.read(this.pc++);
+      return (hi << 8 | (lo & 0x00ff));
+    }
+    throw new Error(`Invalid Address Mode ${instr.address}`);
+  }
 
-class Memory {
+  step() {
+    const opcode = this.bus.read(this.pc++);
+    const instruction = getinopc(opcode);
+    if (!instruction) throw new Error(`Invalid opcode ${opcode}`);
+    const parameter = this.parameter(instruction);
+    const executor = this[`_instr_${instruction.mnemonic}`];
+    if (!executor) throw new Error(`Invalid mnemonic ${instruction.mnemonic}`);
+    executor.bind(this)(parameter);
+  }
+
+  run() {
+    while (this.state !== CPU6502States.Halt) {
+      if (this.state === CPU6502States.Step)
+        this.repl();
+      this.step();
+    }
+  }
+
+  _instr_LDA(p) {
+    this.a = p;
+  }
+
+  _instr_STA(p) {
+    this.bus.write(p, this.a);
+  }
+
+  _instr_BRK(p) {
+    this.state = CPU6502States.Halt;
+  }
 }
 
 class Instruction {
@@ -44,18 +89,6 @@ class Instruction {
     this.cycles = cycles;
   }
 }
-
-class NES {
-  constructor() {
-    this.memory = new Memory();
-    this.ppu = new PPU();
-    this.cpu = new CPU6502();
-  }
-
-  init() {
-  }
-}
-
 
 const fs = require('fs');
 
@@ -210,10 +243,14 @@ const AddrModes = {
   Relative: 3,
 };
 
-const INSTRUCTIONS = {};
-const getinstr = (mnemonic, am) => INSTRUCTIONS[[mnemonic, am]];
+const INSTRUCTIONS_BY_MAM = {};
+const INSTRUCTIONS_BY_OPC = {};
+const getinopc = (opc) => INSTRUCTIONS_BY_OPC[opc];
+const getinstr = (mnemonic, am) => INSTRUCTIONS_BY_MAM[[mnemonic, am]];
 const newinstr = (mnemonic, opc, am, size, cycles) =>
-  INSTRUCTIONS[[mnemonic, am]] = new Instruction(mnemonic, opc, am, size, cycles);
+  INSTRUCTIONS_BY_OPC[opc] =
+  INSTRUCTIONS_BY_MAM[[mnemonic, am]] =
+  new Instruction(mnemonic, opc, am, size, cycles);
 
 newinstr('BRK', 0x00, AddrModes.Implied,   1, 7);
 newinstr('BNE', 0xd0, AddrModes.Relative,  2, 2);
@@ -298,10 +335,54 @@ function testParseINESFile() {
   ines.parse();
 }
 
+class InMemoryBus extends Array {
+  read(addr) {
+    return this[addr];
+  }
+  write(addr, data) {
+    this[addr] = data;
+  }
+}
+
+const asm = (f) => asm6502code(parse6502asm(fs.readFileSync(f).toString()));
+
+function testCPU6502_0() {
+  const mem = new InMemoryBus(65536);
+  const cpu = new CPU6502(mem);
+  let cursor = cpu.pc = 0x0600;
+  for (const b of asm('./prog00.nesS'))
+    mem.write(cursor++, b);
+
+  cpu.step();
+  console.log(cpu.a);               // cpu.a === 1
+  console.log(cpu.pc.toString(16)); // 0x0602
+  cpu.step();
+  console.log(cpu.pc.toString(16)); // 0x0605
+  console.log(mem[0x0200]);         // 1
+
+  cpu.step();
+  console.log(cpu.a);               // cpu.a === 5
+  console.log(cpu.pc.toString(16)); // 0x0607
+  cpu.step();
+  console.log(cpu.pc.toString(16)); // 0x060a
+  console.log(mem[0x0201]);         // 5
+
+  cpu.step();
+  console.log(cpu.a);
+  console.log(cpu.pc.toString(16));
+  cpu.step();
+  console.log(cpu.pc.toString(16));
+  console.log(mem[0x0202]);
+}
+
+function testCPU6502() {
+  testCPU6502_0();
+}
+
 function test() {
   testParse6502asm();
   testASM();
+  testCPU6502();
 }
 
 if (!module.parent) test();
-
