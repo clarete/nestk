@@ -159,7 +159,7 @@ function parse6502asm(source) {
     return or([
       () => [AddrModes.Immediate, parseImmediate()],
       () => [AddrModes.Absolute, parseHexNumber()],
-      () => [AddrModes.Label, parseIdentifier()]]);
+      () => [AddrModes.Relative, parseIdentifier()]]);
   };
   const parseInstruction = () => {
     const mnemonics = MNEMONICS
@@ -169,6 +169,7 @@ function parse6502asm(source) {
     const val = optional(parseAddress);
     const out = ['instruction', mn];
     if (val) out.push(val);
+    else out.push([AddrModes.Implied]);
     return out;
   };
   const parseIdentifier = () => {
@@ -206,7 +207,7 @@ const AddrModes = {
   Implied: 0,
   Immediate: 1,
   Absolute: 2,
-  Label: 3,
+  Relative: 3,
 };
 
 const INSTRUCTIONS = {};
@@ -215,12 +216,18 @@ const newinstr = (mnemonic, opc, am, size, cycles) =>
   INSTRUCTIONS[[mnemonic, am]] = new Instruction(mnemonic, opc, am, size, cycles);
 
 newinstr('BRK', 0x00, AddrModes.Implied,   1, 7);
+newinstr('BNE', 0xd0, AddrModes.Relative,  2, 2);
+newinstr('CPX', 0xc0, AddrModes.Immediate, 2, 2);
+newinstr('CPX', 0xe0, AddrModes.Immediate, 2, 2);
 newinstr('LDA', 0xa9, AddrModes.Immediate, 2, 2);
+newinstr('LDX', 0xa2, AddrModes.Immediate, 2, 2);
+newinstr('STY', 0x8c, AddrModes.Absolute,  3, 4);
 newinstr('STA', 0x8d, AddrModes.Absolute,  3, 4);
+newinstr('STX', 0x8e, AddrModes.Absolute,  3, 4);
+newinstr('DEX', 0xca, AddrModes.Implied,   1, 2);
 
 function asm6502code(code) {
   // Writing machinery
-  let cursor = 0;
   let buffer = Buffer.alloc(8, 0, 'binary');
   let bufferOffset = 0;
   // Ensure buffer size
@@ -238,7 +245,9 @@ function asm6502code(code) {
   const patchlist = {};         // label: [locations]
 
   function wAddr(value) {
-    if (value < 0xff) {
+    if (cache[value] !== undefined) {
+      wByte(cache[value]);
+    } else if (value < 0xff) {
       wByte(value);
     } else if (value < 0xffff) {
       wByte(value & 0xff);
@@ -251,15 +260,17 @@ function asm6502code(code) {
   for (const [type, name, args] of code) {
     switch (type) {
     case 'instruction': {
-      const [addrmode, value] = args;
+      const [addrmode, value] = args || [];
       const instr = getinstr(name, addrmode);
+      if (!instr) throw new Error(`No instr for ${name}`);
       wByte(instr.opcode);
       if (value) wAddr(value);
     } break;
     case 'label':
       // Should locations be 16bit addresses here?
+      cache[name] = offset(0);
       for (const location of patchlist[name] || [])
-        buffer.writeInt8(location, cursor);
+        buffer.writeInt8(location, cache[name]);
       break;
     }
   }
@@ -277,6 +288,8 @@ function testASM() {
     fs.readFileSync(f).toString()));
   // a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02
   console.log(asm('./prog00.nesS'));
+  // a2 08 ca 8e 00 02 e0 03 d0 f8 8e 01 02 00
+  console.log(asm('./prog01.nesS'));
 }
 
 function testParseINESFile() {
