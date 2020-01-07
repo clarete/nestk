@@ -36,10 +36,11 @@ class Memory {
 }
 
 class Instruction {
-  constructor(mnemonic, index, am, cycles=1) {
+  constructor(mnemonic, opcode, am, size, cycles) {
     this.mnemonic = mnemonic;
-    this.index = index;
+    this.opcode = opcode;
     this.addressingMode = am;
+    this.size = size;
     this.cycles = cycles;
   }
 }
@@ -155,7 +156,10 @@ function parse6502asm(source) {
     return parseHexNumber();
   };
   const parseAddress = () => {
-    return or([parseImmediate, parseHexNumber, parseIdentifier]);
+    return or([
+      () => [AddrModes.Immediate, parseImmediate()],
+      () => [AddrModes.Absolute, parseHexNumber()],
+      () => [AddrModes.Label, parseIdentifier()]]);
   };
   const parseInstruction = () => {
     const mnemonics = MNEMONICS
@@ -198,11 +202,81 @@ function parse6502asm(source) {
   return star(parseLine);
 }
 
+const AddrModes = {
+  Implied: 0,
+  Immediate: 1,
+  Absolute: 2,
+  Label: 3,
+};
+
+const INSTRUCTIONS = {};
+const getinstr = (mnemonic, am) => INSTRUCTIONS[[mnemonic, am]];
+const newinstr = (mnemonic, opc, am, size, cycles) =>
+  INSTRUCTIONS[[mnemonic, am]] = new Instruction(mnemonic, opc, am, size, cycles);
+
+newinstr('BRK', 0x00, AddrModes.Implied,   1, 7);
+newinstr('LDA', 0xa9, AddrModes.Immediate, 2, 2);
+newinstr('STA', 0x8d, AddrModes.Absolute,  3, 4);
+
+function asm6502code(code) {
+  // Writing machinery
+  let cursor = 0;
+  let buffer = Buffer.alloc(8, 0, 'binary');
+  let bufferOffset = 0;
+  // Ensure buffer size
+  const offset = step => {
+    const nextSize = bufferOffset += step;
+    if (nextSize > buffer.byteLength)
+      buffer = Buffer.concat([buffer, Buffer.alloc(step)], nextSize);
+    return nextSize - step;
+  };
+  // Because the `buffer' variable is reassigned in this scope
+  const write = (length, fn) => { const of = offset(length); fn(buffer, of); };
+  const wByte = v => write(1, (b, o) => b.writeUInt8(v, o));
+  // Traverse the input
+  const cache = {};             // label: location
+  const patchlist = {};         // label: [locations]
+
+  function wAddr(value) {
+    if (value < 0xff) {
+      wByte(value);
+    } else if (value < 0xffff) {
+      wByte(value & 0xff);
+      wByte(value >> 8);
+    } else {
+      throw new Error(`Value too big ${value}`);
+    }
+  }
+
+  for (const [type, name, args] of code) {
+    switch (type) {
+    case 'instruction': {
+      const [addrmode, value] = args;
+      const instr = getinstr(name, addrmode);
+      wByte(instr.opcode);
+      if (value) wAddr(value);
+    } break;
+    case 'label':
+      // Should locations be 16bit addresses here?
+      for (const location of patchlist[name] || [])
+        buffer.writeInt8(location, cursor);
+      break;
+    }
+  }
+  return buffer;
+}
+
 function testParse6502asm() {
   const asm = (f) => fs.readFileSync(f).toString();
-  console.log(asm('./prog00.nesS'));
   console.log(parse6502asm(asm('./prog00.nesS')));
   console.log(parse6502asm(asm('./prog01.nesS')));
+}
+
+function testASM() {
+  const asm = (f) => asm6502code(parse6502asm(
+    fs.readFileSync(f).toString()));
+  // a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02
+  console.log(asm('./prog00.nesS'));
 }
 
 function testParseINESFile() {
@@ -213,6 +287,7 @@ function testParseINESFile() {
 
 function test() {
   testParse6502asm();
+  testASM();
 }
 
 if (!module.parent) test();
