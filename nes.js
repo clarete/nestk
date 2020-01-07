@@ -155,7 +155,7 @@ function parse6502asm(source) {
     return parseHexNumber();
   };
   const parseAddress = () => {
-    return or([parseImmediate, parseHexNumber]);
+    return or([parseImmediate, parseHexNumber, parseIdentifier]);
   };
   const parseInstruction = () => {
     const mnemonics = MNEMONICS
@@ -163,19 +163,30 @@ function parse6502asm(source) {
       .map(x => () => expectStr(x));
     const mn = or(mnemonics); ws();
     const val = optional(parseAddress);
-    const out = ['instruction', mn]
+    const out = ['instruction', mn];
     if (val) out.push(val);
     return out;
   };
-  const parseLabel = () => {
+  const parseIdentifier = () => {
+    const isdigit = () => {
+      const c = curr();
+      return Number.isInteger(c)
+        ? next() && c
+        : errr(`Expected digit, got ${c}`);
+    };
     const ischar = () => {
       const c = curr();
       return /[\w_]/.test(c)
         ? next() && c
         : errr(`Expected char, got ${c}`);
     };
-    const label = plus(ischar).join(''); ws();
-    expect(':');
+    return [ischar()]
+      .concat(star(() => or([ischar, isdigit])))
+      .join('');
+  };
+  const parseLabel = () => {
+    const label = parseIdentifier();
+    ws(); expect(':');
     return ['label', label];
   };
   const parseLine = () => {
