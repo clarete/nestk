@@ -1,6 +1,14 @@
-// Address Modes
-// Instructions
-// Cycles
+/*
+
+ Thanks to http://nesdev.com/6502.txt
+
+ * [-] Address Modes
+ * [-] CPU Instructions
+ * [ ] Cycles
+ * [ ] PPU
+ * [ ] Input
+
+ */
 
 const MNEMONICS = [
   'ADC', 'AND', 'ASL', 'BCC', 'BCS', 'BEQ', 'BIT', 'BMI', 'BNE', 'BPL', 'BRK',
@@ -36,17 +44,26 @@ class CPU6502 {
   }
 
   parameter(instr) {
-    switch (instr.addressingMode) {
-    case AddrModes.Implied:
-      return undefined;
-    case AddrModes.Immediate:
-      return this.bus.read(this.pc++);
-    case AddrModes.Absolute:
+
+    const read8 = () => this.bus.read(this.pc++);
+    const read16 = () => {
       const lo = this.bus.read(this.pc++);
       const hi = this.bus.read(this.pc++);
       return (hi << 8 | (lo & 0x00ff));
+    };
+
+    switch (instr.addressingMode) {
+    case AddrModes.Implied:
+      return undefined;
+    case AddrModes.Relative:
+    case AddrModes.Immediate:
+    case AddrModes.AbsoluteZeroPage:
+      return read8();
+    case AddrModes.Absolute:
+      return read16();
+    default:
+      throw new Error(`Invalid Address Mode ${instr.address}`);
     }
-    throw new Error(`Invalid Address Mode ${instr.address}`);
   }
 
   step() {
@@ -171,27 +188,43 @@ function parse6502asm(source) {
     };
     return output;
   };
+  const ntimes = (n, f) => {
+    const output = [];
+    for (let i = 0; i < n; i++)
+      output.push(f());
+    return output;
+  };
   const plus = f => [f()].concat(star(f));
   const optional = f => or([f, () => null]);
   // Parsing functions
   const thunkspect = c => () => expect(c);
   const ws = () => star(() => or(Array.from(' \t', thunkspect))).join('');
   const nl = () => star(thunkspect('\n')).join('');
-  const parseHexDigit = () => {
-    return or(Array.from("0123456789abcdef", thunkspect));
-  };
-  const parseHexNumber = () => {
-    expect('$');
-    return parseInt(star(parseHexDigit).join(''), 16);
-  };
-  const parseImmediate = () => {
-    expect('#');
-    return parseHexNumber();
-  };
+  const hex = n => parseInt(n, 16);
+  const parseHexDigit = () =>
+    or(Array.from("0123456789abcdef", thunkspect));
+  const parseOneByteHex = () =>
+    expect('$') && hex(ntimes(2, parseHexDigit).join(''));
+  const parseTwoByteHex = () =>
+    expect('$') && hex(ntimes(4, parseHexDigit).join(''));
+  const parseImmediate = () =>
+    expect('#') && parseOneByteHex();
   const parseAddress = () => {
+    // We don't have to care about the following modes here:
+    // 0. Implied: 0
+    // 1. Accumulator: 0
     return or([
+      // 2. Immediate mode: reads 8b data
       () => [AddrModes.Immediate, parseImmediate()],
-      () => [AddrModes.Absolute, parseHexNumber()],
+      // 3, 4: Absolute & Zero-page Absolute: read 16b & 8b data
+      // respectively
+      () => [AddrModes.Absolute, parseTwoByteHex()],
+      () => [AddrModes.AbsoluteZeroPage, parseOneByteHex()],
+      // 6, 7. Indexed and Zero-page Indexed
+      // 8. Indirect
+      // 9. Pre-indexed indirect
+      // 10. Post-indexed indirect
+      // 11. Relative
       () => [AddrModes.Relative, parseIdentifier()]]);
   };
   const parseInstruction = () => {
@@ -240,7 +273,8 @@ const AddrModes = {
   Implied: 0,
   Immediate: 1,
   Absolute: 2,
-  Relative: 3,
+  AbsoluteZeroPage: 3,
+  Relative: 4,
 };
 
 const INSTRUCTIONS_BY_MAM = {};
@@ -386,3 +420,13 @@ function test() {
 }
 
 if (!module.parent) test();
+
+module.exports = {
+  asm6502code,
+  AddrModes,
+  Instruction,
+  INES,
+  CPU6502States,
+  CPU6502,
+  parse6502asm,
+};
