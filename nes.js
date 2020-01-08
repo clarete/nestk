@@ -44,14 +44,12 @@ class CPU6502 {
   }
 
   parameter(instr) {
-
     const read8 = () => this.bus.read(this.pc++);
     const read16 = () => {
       const lo = this.bus.read(this.pc++);
       const hi = this.bus.read(this.pc++);
       return (hi << 8 | (lo & 0x00ff));
     };
-
     switch (instr.addressingMode) {
     case AddrModes.Implied:
       return undefined;
@@ -108,7 +106,6 @@ class Instruction {
 }
 
 const fs = require('fs');
-
 
 class INES {
   constructor(buffer) {
@@ -208,7 +205,30 @@ function parse6502asm(source) {
   const parseTwoByteHex = () =>
     expect('$') && hex(ntimes(4, parseHexDigit).join(''));
   const parseImmediate = () =>
-    expect('#') && parseOneByteHex();
+    expect('#') && or([parseOneByteHex, parseIdentifier]);
+  const parseIndexed = (fn, c) => {
+    const value = fn();
+    const strs = [`,${c.toUpperCase()}`, `,${c}`];
+    or(strs.map(s => () => expectStr(s)));
+    return value;
+  };
+  const parseIndirect = (c) => {
+    expect('('); ws();
+    const value = or([parseOneByteHex, parseIdentifier]);
+    if (c) {
+      const strs = [`,${c.toUpperCase()}`, `,${c}`];
+      or(strs.map(s => () => expectStr(s)));
+    }
+    ws(); expect(')');
+    return value;
+  };
+  const parseIndirectPost = (c) => {
+    expect('('); ws();
+    const value = or([parseOneByteHex, parseIdentifier]);
+    const strs = [`),${c.toUpperCase()}`, `,)${c}`];
+    or(strs.map(s => () => expectStr(s))); ws();
+    return value;
+  };
   const parseAddress = () => {
     // We don't have to care about the following modes here:
     // 0. Implied: 0
@@ -216,26 +236,33 @@ function parse6502asm(source) {
     return or([
       // 2. Immediate mode: reads 8b data
       () => [AddrModes.Immediate, parseImmediate()],
-      // 3, 4: Absolute & Zero-page Absolute: read 16b & 8b data
+      // 3, 4. Indexed and Zero-page Indexed
+      () => [AddrModes.AbsoluteX, parseIndexed(parseTwoByteHex, 'x')],
+      () => [AddrModes.AbsoluteY, parseIndexed(parseTwoByteHex, 'y')],
+      () => [AddrModes.ZeroPageX, parseIndexed(parseOneByteHex, 'x')],
+      () => [AddrModes.ZeroPageY, parseIndexed(parseOneByteHex, 'y')],
+      // 5, 6: Absolute & Zero-page Absolute: read 16b & 8b data
       // respectively
       () => [AddrModes.Absolute, parseTwoByteHex()],
-      () => [AddrModes.AbsoluteZeroPage, parseOneByteHex()],
-      // 6, 7. Indexed and Zero-page Indexed
-      // 8. Indirect
-      // 9. Pre-indexed indirect
-      // 10. Post-indexed indirect
-      // 11. Relative
+      () => [AddrModes.ZeroPage, parseOneByteHex()],
+      // 7. Pre-indexed indirect
+      () => [AddrModes.IndirectX, parseIndirect('x')],
+      () => [AddrModes.IndirectY, parseIndirect('y')],
+      // 8. Post-indexed indirect
+      () => [AddrModes.IndirectPostX, parseIndirectPost('x')],
+      () => [AddrModes.IndirectPostY, parseIndirectPost('y')],
+      // 9. Indirect
+      () => [AddrModes.Indirect, parseIndirect(null)],
+      // 10. Relative
       () => [AddrModes.Relative, parseIdentifier()]]);
   };
   const parseInstruction = () => {
     const mnemonics = MNEMONICS
       .map(m => [m, m.toLowerCase()]).flat()
       .map(x => () => expectStr(x));
-    const mn = or(mnemonics); ws();
-    const val = optional(parseAddress);
-    const out = ['instruction', mn];
-    if (val) out.push(val);
-    else out.push([AddrModes.Implied]);
+    const out = ['instruction', or(mnemonics)]; ws();
+    const addr = optional(parseAddress) || [AddrModes.Implied];
+    for (const a of addr) out.push(a);
     return out;
   };
   const parseIdentifier = () => {
@@ -273,8 +300,17 @@ const AddrModes = {
   Implied: 0,
   Immediate: 1,
   Absolute: 2,
-  AbsoluteZeroPage: 3,
-  Relative: 4,
+  AbsoluteX: 3,
+  AbsoluteY: 4,
+  ZeroPage: 5,
+  ZeroPageX: 6,
+  ZeroPageY: 7,
+  Indirect: 8,
+  IndirectX: 9,
+  IndirectY: 10,
+  IndirectPostX: 11,
+  IndirectPostY: 12,
+  Relative: 13,
 };
 
 const INSTRUCTIONS_BY_MAM = {};
@@ -328,10 +364,9 @@ function asm6502code(code) {
     }
   }
 
-  for (const [type, name, args] of code) {
+  for (const [type, name, addrmode, value] of code) {
     switch (type) {
     case 'instruction': {
-      const [addrmode, value] = args || [];
       const instr = getinstr(name, addrmode);
       if (!instr) throw new Error(`No instr for ${name}`);
       wByte(instr.opcode);
