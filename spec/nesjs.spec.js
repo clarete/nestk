@@ -1,6 +1,6 @@
 const nesjs = require('../nes');
 
-describe('6502 ASM', () => {
+describe('6502 ASM Parser', () => {
   describe('Address Modes', () => {
     it("should parse immediate address mode", () => {
       const parsed = nesjs.parse6502asm('LDX #$ff\nLDA #$c3\nLDY #stuff\n');
@@ -81,4 +81,43 @@ describe('6502 ASM', () => {
 });
 
 describe('6502 CPU', () => {
+  describe('Address Modes', () => {
+    it("should read immediate parameters", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDA #$fe')));
+      cpu.step();
+      expect(cpu.a).toBe(0xfe);
+    });
+
+    it("should read zero-page parameters", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDA $fe')));
+      cpu.bus.write(0xfe, 0xae);
+      cpu.step();
+      expect(cpu.a).toBe(0xae);
+    });
+
+    it("should read zero-page,X parameters", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.x = 2;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDA $fe,x')));
+      cpu.bus.write(0xfe+cpu.x, 0xae);
+      cpu.step();
+      expect(cpu.a).toBe(0xae);
+    });
+
+    it("should read zero-page,Y parameters", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.y = 3;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDA $fe,y')));
+      cpu.bus.write(0xfe+cpu.y, 0xae);
+      cpu.step();
+      expect(cpu.a).toBe(0xae);
+    });
+
+  });
 });

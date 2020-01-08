@@ -51,14 +51,26 @@ class CPU6502 {
       return (hi << 8 | (lo & 0x00ff));
     };
     switch (instr.addressingMode) {
+    // This impplied mode could either mean no parameters for the
+    // instruction (or the instruction operates on the data within the
+    // acumulator register, which they can do directly)
     case AddrModes.Implied:
       return undefined;
-    case AddrModes.Relative:
+    // Should return what's right under the Program Counter
     case AddrModes.Immediate:
+      return read8();
+    // All the zero-page and indexed zero page reads with both X & Y
+    // registers. They're all 8bit numbers
+    case AddrModes.ZeroPage:
+      return this.bus.read(read8()) & 0x00ff;
+    case AddrModes.ZeroPageX:
+      return this.bus.read(read8() + this.x) & 0x00ff;
+    case AddrModes.ZeroPageY:
+      return this.bus.read(read8() + this.y) & 0x00ff;
+
+    case AddrModes.Relative:
     case AddrModes.AbsoluteZeroPage:
       return read8();
-    case AddrModes.Absolute:
-      return read16();
     default:
       throw new Error(`Invalid Address Mode ${instr.address}`);
     }
@@ -88,6 +100,18 @@ class CPU6502 {
 
   _instr_STA(p) {
     this.bus.write(p, this.a);
+  }
+
+  _instr_LDX(p) {
+    this.x = p;
+  }
+
+  _instr_STX(p) {
+    this.bus.write(p, this.x);
+  }
+
+  _instr_DEX(p) {
+    this.x--;
   }
 
   _instr_BRK(p) {
@@ -326,7 +350,23 @@ newinstr('BRK', 0x00, AddrModes.Implied,   1, 7);
 newinstr('BNE', 0xd0, AddrModes.Relative,  2, 2);
 newinstr('CPX', 0xc0, AddrModes.Immediate, 2, 2);
 newinstr('CPX', 0xe0, AddrModes.Immediate, 2, 2);
+
+// LDA #oper    A9    immidiate            2  2
 newinstr('LDA', 0xa9, AddrModes.Immediate, 2, 2);
+// LDA oper     A5    zeropage             2  3
+newinstr('LDA', 0xa5, AddrModes.ZeroPage,  2, 3);
+// LDA oper,X   B5    zeropage,X           2  4
+newinstr('LDA', 0xb5, AddrModes.ZeroPageX, 2, 4);
+// LDA oper,Y   B6    zeropage,Y           2  4
+newinstr('LDA', 0xb6, AddrModes.ZeroPageY, 2, 4);
+
+// absolute      LDA oper      AD    3     4
+// absolute,X    LDA oper,X    BD    3     4*
+// absolute,Y    LDA oper,Y    B9    3     4*
+// (indirect,X)  LDA (oper,X)  A1    2     6
+// (indirect),Y  LDA (oper),Y  B1    2     5*
+
+
 newinstr('LDX', 0xa2, AddrModes.Immediate, 2, 2);
 newinstr('STY', 0x8c, AddrModes.Absolute,  3, 4);
 newinstr('STA', 0x8d, AddrModes.Absolute,  3, 4);
@@ -404,19 +444,25 @@ function testParseINESFile() {
   ines.parse();
 }
 
-class InMemoryBus extends Array {
+class ArrayBus extends Array {
   read(addr) {
     return this[addr];
   }
   write(addr, data) {
     this[addr] = data;
   }
+  writeBuffer(addr, buffer) {
+    let cursor = 0x0600;
+    for (const b of buffer)
+      this.write(cursor++, b);
+  }
 }
 
 const asm = (f) => asm6502code(parse6502asm(fs.readFileSync(f).toString()));
 
+
 function testCPU6502_0() {
-  const mem = new InMemoryBus(65536);
+  const mem = new ArrayBus(65536);
   const cpu = new CPU6502(mem);
   let cursor = cpu.pc = 0x0600;
   for (const b of asm('./prog00.nesS'))
@@ -458,6 +504,7 @@ if (!module.parent) test();
 
 module.exports = {
   asm6502code,
+  ArrayBus,
   AddrModes,
   Instruction,
   INES,
