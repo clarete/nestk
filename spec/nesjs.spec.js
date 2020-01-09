@@ -119,5 +119,34 @@ describe('6502 CPU', () => {
       expect(cpu.a).toBe(0xae);
     });
 
+    it("should read absolute parameters", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDA $fe0f')));
+      cpu.bus.write(0xfe0f, 0xdd);
+      cpu.step();
+      expect(cpu.a).toBe(0xdd);
+    });
+
+    it("should read absolute,X parameters", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.x = 25;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDA $fe0f,X')));
+      cpu.bus.write(0xfe0f+cpu.x, 0xdd);
+      cpu.step();
+      expect(cpu.a).toBe(0xdd);
+    });
+
+    it("should read absolute,Y parameters", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.y = 25;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDA $fe0f,Y')));
+      cpu.bus.write(0xfe0f+cpu.y, 0xdd);
+      cpu.step();
+      expect(cpu.a).toBe(0xdd);
+    });
+
   });
 });

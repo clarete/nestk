@@ -44,11 +44,15 @@ class CPU6502 {
   }
 
   parameter(instr) {
-    const read8 = () => this.bus.read(this.pc++);
-    const read16 = () => {
+    const read8 = (offset=0) => {
+      const pos = this.bus.read(this.pc++) + offset;
+      return this.bus.read(pos) & 0x00ff;
+    };
+    const read16 = (offset=0) => {
       const lo = this.bus.read(this.pc++);
       const hi = this.bus.read(this.pc++);
-      return (hi << 8 | (lo & 0x00ff));
+      const pos = hi << 8 | (lo & 0x00ff);
+      return this.bus.read(pos + offset);
     };
     switch (instr.addressingMode) {
     // This impplied mode could either mean no parameters for the
@@ -58,18 +62,24 @@ class CPU6502 {
       return undefined;
     // Should return what's right under the Program Counter
     case AddrModes.Immediate:
-      return read8();
+      return this.bus.read(this.pc++);
     // All the zero-page and indexed zero page reads with both X & Y
     // registers. They're all 8bit numbers
     case AddrModes.ZeroPage:
-      return this.bus.read(read8()) & 0x00ff;
+      return read8();
     case AddrModes.ZeroPageX:
-      return this.bus.read(read8() + this.x) & 0x00ff;
+      return read8(this.x);
     case AddrModes.ZeroPageY:
-      return this.bus.read(read8() + this.y) & 0x00ff;
+      return read8(this.y);
+    // Absolute addresses with and without indexing
+    case AddrModes.Absolute:
+      return read16();
+    case AddrModes.AbsoluteX:
+      return read16(this.x);
+    case AddrModes.AbsoluteY:
+      return read16(this.y);
 
     case AddrModes.Relative:
-    case AddrModes.AbsoluteZeroPage:
       return read8();
     default:
       throw new Error(`Invalid Address Mode ${instr.address}`);
@@ -359,10 +369,13 @@ newinstr('LDA', 0xa5, AddrModes.ZeroPage,  2, 3);
 newinstr('LDA', 0xb5, AddrModes.ZeroPageX, 2, 4);
 // LDA oper,Y   B6    zeropage,Y           2  4
 newinstr('LDA', 0xb6, AddrModes.ZeroPageY, 2, 4);
+// LDA oper     AD    absolute             3  4
+newinstr('LDA', 0xad, AddrModes.Absolute,  3, 4);
+// LDA oper,X   BD    absolute,X           3  4*
+newinstr('LDA', 0xbd, AddrModes.AbsoluteX, 3, 4);
+// LDA oper,Y   B9    absolute,Y           3  4*
+newinstr('LDA', 0xb9, AddrModes.AbsoluteY, 3, 4);
 
-// absolute      LDA oper      AD    3     4
-// absolute,X    LDA oper,X    BD    3     4*
-// absolute,Y    LDA oper,Y    B9    3     4*
 // (indirect,X)  LDA (oper,X)  A1    2     6
 // (indirect),Y  LDA (oper),Y  B1    2     5*
 
