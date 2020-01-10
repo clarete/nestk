@@ -222,8 +222,6 @@ class Instruction {
   }
 }
 
-const fs = require('fs');
-
 class INES {
   constructor(buffer) {
     this.buffer = buffer;
@@ -686,28 +684,10 @@ function asm6502code(code) {
   return buffer;
 }
 
-function testParse6502asm() {
-  const asm = (f) => fs.readFileSync(f).toString();
-  console.log(parse6502asm(asm('./prog00.nesS')));
-  console.log(parse6502asm(asm('./prog01.nesS')));
-}
-
-function testASM() {
-  const asm = (f) => asm6502code(parse6502asm(
-    fs.readFileSync(f).toString()));
-  // a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02
-  console.log(asm('./prog00.nesS'));
-  // a2 08 ca 8e 00 02 e0 03 d0 f8 8e 01 02 00
-  console.log(asm('./prog01.nesS'));
-}
-
-function testParseINESFile() {
-  const file = './nestest.nes';
-  const ines = new INES(fs.readFileSync(file));
-  ines.parse();
-}
-
 class ArrayBus extends Array {
+  constructor(s) {
+    super(s).fill(0);
+  }
   read(addr) {
     return this[addr];
   }
@@ -721,57 +701,14 @@ class ArrayBus extends Array {
   }
 }
 
-const asm = (f) => asm6502code(parse6502asm(fs.readFileSync(f).toString()));
-
-
-function testCPU6502_0() {
-  const mem = new ArrayBus(65536);
-  const cpu = new CPU6502(mem);
-  let cursor = cpu.pc = 0x0600;
-  for (const b of asm('./prog00.nesS'))
-    mem.write(cursor++, b);
-
-  cpu.step();
-  console.log(cpu.a);               // cpu.a === 1
-  console.log(cpu.pc.toString(16)); // 0x0602
-  cpu.step();
-  console.log(cpu.pc.toString(16)); // 0x0605
-  console.log(mem[0x0200]);         // 1
-
-  cpu.step();
-  console.log(cpu.a);               // cpu.a === 5
-  console.log(cpu.pc.toString(16)); // 0x0607
-  cpu.step();
-  console.log(cpu.pc.toString(16)); // 0x060a
-  console.log(mem[0x0201]);         // 5
-
-  cpu.step();
-  console.log(cpu.a);
-  console.log(cpu.pc.toString(16));
-  cpu.step();
-  console.log(cpu.pc.toString(16));
-  console.log(mem[0x0202]);
-}
-
-function testCPU6502() {
-  testCPU6502_0();
-}
-
-function test() {
-  testParse6502asm();
-  testASM();
-  testCPU6502();
-}
-
-if (!module.parent) test();
-
 module.exports = {
-  asm6502code,
-  ArrayBus,
+  AddrModeNames,
   AddrModes,
+  ArrayBus,
   Instruction,
   INES,
-  CPU6502States,
   CPU6502,
+  addrmodename,
+  asm6502code,
   parse6502asm,
 };
