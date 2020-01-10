@@ -229,8 +229,18 @@ function parse6502asm(source) {
   const optional = f => or([f, () => null]);
   // Parsing functions
   const thunkspect = c => () => expect(c);
-  const ws = () => star(() => or(Array.from(' \t', thunkspect))).join('');
-  const nl = () => star(thunkspect('\n')).join('');
+  const comment = () => {
+    expect(';');
+    while (cursor < source.length) {
+      const c = curr(); next();
+      if (c === '\n') break;
+    }
+  };
+  const ws = () => {
+    const opts = Array.from(' \t', thunkspect).concat(comment);
+    return star(() => or(opts)).join('');
+  };
+  const nl = () => star(() => or([thunkspect('\n'), comment])).join('');
   const hex = n => parseInt(n, 16);
   const parseHexDigit = () =>
     or(Array.from("0123456789abcdef", thunkspect));

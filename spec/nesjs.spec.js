@@ -1,6 +1,13 @@
 const nesjs = require('../nes');
 
 describe('6502 ASM Parser', () => {
+  it("should parse comments", () => {
+    const parsed = nesjs.parse6502asm(';stuff\nLDX #$ff; blah blah blah\n');
+    expect(parsed).toEqual([
+      ['instruction', 'LDX', nesjs.AddrModes.Immediate, 0xff],
+    ]);
+  });
+
   describe('Address Modes', () => {
     it("should parse immediate address mode", () => {
       const parsed = nesjs.parse6502asm('LDX #$ff\nLDA #$c3\nLDY #stuff\n');
