@@ -44,45 +44,37 @@ class CPU6502 {
   }
 
   parameter(instr) {
-    const read8 = (offset=0) => {
-      const pos = this.bus.read(this.pc++) + offset;
-      return this.bus.read(pos) & 0x00ff;
+    const addr8 = (offset=0) => {
+      return this.bus.read(this.pc++) + offset;
     };
-    const read16 = (offset=0) => {
+    const addr16 = (offset=0) => {
       const lo = this.bus.read(this.pc++);
       const hi = this.bus.read(this.pc++);
       const pos = hi << 8 | (lo & 0x00ff);
-      return this.bus.read(pos + offset);
+      return pos + offset;
     };
     switch (instr.addressingMode) {
     // This impplied mode could either mean no parameters for the
     // instruction (or the instruction operates on the data within the
     // acumulator register, which they can do directly)
-    case AddrModes.Implied:
-      return undefined;
+    case AddrModes.Implied: return undefined;
     // Should return what's right under the Program Counter
-    case AddrModes.Immediate:
-      return this.bus.read(this.pc++);
+    case AddrModes.Immediate: return this.pc++;
     // All the zero-page and indexed zero page reads with both X & Y
     // registers. They're all 8bit numbers
-    case AddrModes.ZeroPage:
-      return read8();
-    case AddrModes.ZeroPageX:
-      return read8(this.x);
-    case AddrModes.ZeroPageY:
-      return read8(this.y);
+    case AddrModes.ZeroPage: return addr8();
+    case AddrModes.ZeroPageX: return addr8(this.x);
+    case AddrModes.ZeroPageY: return addr8(this.y);
     // Absolute addresses with and without indexing
-    case AddrModes.Absolute:
-      return read16();
-    case AddrModes.AbsoluteX:
-      return read16(this.x);
-    case AddrModes.AbsoluteY:
-      return read16(this.y);
-
-    case AddrModes.Relative:
-      return read8();
+    case AddrModes.Absolute: return addr16();
+    case AddrModes.AbsoluteX: return addr16(this.x);
+    case AddrModes.AbsoluteY: return addr16(this.y);
+    // Indirect address or pointers
+    case AddrModes.Indirect: return this.bus.read(addr16());
+    // For branches
+    case AddrModes.Relative: return addr8();
     default:
-      throw new Error(`Invalid Address Mode ${instr.address}`);
+      throw new Error(`Invalid Address Mode ${instr.addressingMode}`);
     }
   }
 
