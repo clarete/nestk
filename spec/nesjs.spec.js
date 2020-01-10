@@ -113,10 +113,10 @@ describe('6502 CPU', () => {
       const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
       cpu.pc = 0x0600;
       cpu.y = 3;
-      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDA $fe,y')));
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('LDX $fe,y')));
       cpu.bus.write(0xfe+cpu.y, 0xae);
       cpu.step();
-      expect(cpu.a).toBe(0xae);
+      expect(cpu.x).toBe(0xae);
     });
 
     it("should read absolute parameters", () => {

@@ -356,35 +356,157 @@ const newinstr = (mnemonic, opc, am, size, cycles) =>
   INSTRUCTIONS_BY_MAM[[mnemonic, am]] =
   new Instruction(mnemonic, opc, am, size, cycles);
 
-newinstr('BRK', 0x00, AddrModes.Implied,   1, 7);
-newinstr('BNE', 0xd0, AddrModes.Relative,  2, 2);
-newinstr('CPX', 0xc0, AddrModes.Immediate, 2, 2);
-newinstr('CPX', 0xe0, AddrModes.Immediate, 2, 2);
-
-// LDA #oper    A9    immidiate            2  2
-newinstr('LDA', 0xa9, AddrModes.Immediate, 2, 2);
-// LDA oper     A5    zeropage             2  3
-newinstr('LDA', 0xa5, AddrModes.ZeroPage,  2, 3);
-// LDA oper,X   B5    zeropage,X           2  4
-newinstr('LDA', 0xb5, AddrModes.ZeroPageX, 2, 4);
-// LDA oper,Y   B6    zeropage,Y           2  4
-newinstr('LDA', 0xb6, AddrModes.ZeroPageY, 2, 4);
-// LDA oper     AD    absolute             3  4
-newinstr('LDA', 0xad, AddrModes.Absolute,  3, 4);
-// LDA oper,X   BD    absolute,X           3  4*
-newinstr('LDA', 0xbd, AddrModes.AbsoluteX, 3, 4);
-// LDA oper,Y   B9    absolute,Y           3  4*
-newinstr('LDA', 0xb9, AddrModes.AbsoluteY, 3, 4);
-
-// (indirect,X)  LDA (oper,X)  A1    2     6
-// (indirect),Y  LDA (oper),Y  B1    2     5*
-
-
-newinstr('LDX', 0xa2, AddrModes.Immediate, 2, 2);
-newinstr('STY', 0x8c, AddrModes.Absolute,  3, 4);
-newinstr('STA', 0x8d, AddrModes.Absolute,  3, 4);
-newinstr('STX', 0x8e, AddrModes.Absolute,  3, 4);
-newinstr('DEX', 0xca, AddrModes.Implied,   1, 2);
+newinstr('ADC', 0x69, AddrModes.Immediate,   2, 2);
+newinstr('ADC', 0x65, AddrModes.ZeroPage,    2, 3);
+newinstr('ADC', 0x75, AddrModes.ZeroPageX,   2, 4);
+newinstr('ADC', 0x60, AddrModes.Absolute,    3, 4);
+newinstr('ADC', 0x70, AddrModes.AbsoluteX,   3, 4);
+newinstr('ADC', 0x79, AddrModes.AbsoluteY,   3, 4);
+newinstr('ADC', 0x61, AddrModes.IndirectX,   2, 6);
+newinstr('ADC', 0x71, AddrModes.IndirectY,   2, 5);
+newinstr('AND', 0x29, AddrModes.Immediate,   2, 2);
+newinstr('AND', 0x25, AddrModes.ZeroPage,    2, 3);
+newinstr('AND', 0x35, AddrModes.ZeroPageX,   2, 4);
+newinstr('AND', 0x2D, AddrModes.Absolute,    3, 4);
+newinstr('AND', 0x3D, AddrModes.AbsoluteX,   3, 4);
+newinstr('AND', 0x39, AddrModes.AbsoluteY,   3, 4);
+newinstr('AND', 0x21, AddrModes.IndirectX,   2, 6);
+newinstr('AND', 0x31, AddrModes.IndirectY,   2, 5);
+newinstr('ASL', 0x0A, AddrModes.Accumulator, 1, 2);
+newinstr('ASL', 0x06, AddrModes.ZeroPage,    2, 5);
+newinstr('ASL', 0x16, AddrModes.ZeroPageX,   2, 6);
+newinstr('ASL', 0x0E, AddrModes.Absolute,    3, 6);
+newinstr('ASL', 0x1E, AddrModes.AbsoluteX,   3, 7);
+newinstr('BCC', 0x90, AddrModes.Relative,    2, 2);
+newinstr('BCS', 0xB0, AddrModes.Relative,    2, 2);
+newinstr('BEQ', 0xF0, AddrModes.Relative,    2, 2);
+newinstr('BIT', 0x24, AddrModes.ZeroPage,    2, 3);
+newinstr('BIT', 0x2C, AddrModes.Absolute,    3, 4);
+newinstr('BMI', 0x30, AddrModes.Relative,    2, 2);
+newinstr('BMI', 0xD0, AddrModes.Relative,    2, 2);
+newinstr('BPL', 0x10, AddrModes.Relative,    2, 2);
+newinstr('BRK', 0x00, AddrModes.Implied,     1, 7);
+newinstr('BVC', 0x50, AddrModes.Relative,    2, 2);
+newinstr('BVS', 0x70, AddrModes.Relative,    2, 2);
+newinstr('CLC', 0x18, AddrModes.Implied,     1, 2);
+newinstr('CLD', 0xD8, AddrModes.Implied,     1, 2);
+newinstr('CLI', 0x58, AddrModes.Implied,     1, 2);
+newinstr('CLV', 0xB8, AddrModes.Implied,     1, 2);
+newinstr('CMP', 0xC9, AddrModes.Immediate,   2, 2);
+newinstr('CMP', 0xC5, AddrModes.ZeroPage,    2, 3);
+newinstr('CMP', 0xD5, AddrModes.ZeroPageX,   2, 4);
+newinstr('CMP', 0xCD, AddrModes.Absolute,    3, 4);
+newinstr('CMP', 0xDD, AddrModes.AbsoluteX,   3, 4);
+newinstr('CMP', 0xD9, AddrModes.AbsoluteY,   3, 4);
+newinstr('CMP', 0xC1, AddrModes.IndirectX,   2, 6);
+newinstr('CMP', 0xD1, AddrModes.IndirectY,   2, 5);
+newinstr('CPX', 0xE0, AddrModes.Immediate,   2, 2);
+newinstr('CPX', 0xE4, AddrModes.ZeroPage,    2, 3);
+newinstr('CPX', 0xEC, AddrModes.Absolute,    3, 4);
+newinstr('CPY', 0xC0, AddrModes.Immediate,   2, 2);
+newinstr('CPY', 0xC4, AddrModes.ZeroPage,    2, 3);
+newinstr('CPY', 0xCC, AddrModes.Absolute,    3, 4);
+newinstr('DEC', 0xC6, AddrModes.ZeroPage,    2, 5);
+newinstr('DEC', 0xD6, AddrModes.ZeroPageX,   2, 6);
+newinstr('DEC', 0xCE, AddrModes.Absolute,    3, 6);
+newinstr('DEC', 0xDE, AddrModes.AbsoluteX,   3, 7);
+newinstr('DEX', 0xCA, AddrModes.Implied,     1, 2);
+newinstr('DEY', 0x88, AddrModes.Implied,     1, 2);
+newinstr('EOR', 0x49, AddrModes.Immediate,   2, 2);
+newinstr('EOR', 0x45, AddrModes.ZeroPage,    2, 3);
+newinstr('EOR', 0x55, AddrModes.ZeroPageX,   2, 4);
+newinstr('EOR', 0x40, AddrModes.Absolute,    3, 4);
+newinstr('EOR', 0x50, AddrModes.AbsoluteX,   3, 4);
+newinstr('EOR', 0x59, AddrModes.AbsoluteY,   3, 4);
+newinstr('EOR', 0x41, AddrModes.IndirectX,   2, 6);
+newinstr('EOR', 0x51, AddrModes.IndirectY,   2, 5);
+newinstr('INC', 0xE6, AddrModes.ZeroPage,    2, 5);
+newinstr('INC', 0xF6, AddrModes.ZeroPageX,   2, 6);
+newinstr('INC', 0xEE, AddrModes.Absolute,    3, 6);
+newinstr('INC', 0xFE, AddrModes.AbsoluteX,   3, 7);
+newinstr('INX', 0xE8, AddrModes.Implied,     1, 2);
+newinstr('INY', 0xC8, AddrModes.Implied,     1, 2);
+newinstr('JMP', 0x4C, AddrModes.Absolute,    3, 3);
+newinstr('JMP', 0x6C, AddrModes.Indirect,    3, 5);
+newinstr('JSR', 0x20, AddrModes.Absolute,    3, 6);
+newinstr('LDA', 0xA9, AddrModes.Immediate,   2, 2);
+newinstr('LDA', 0xA5, AddrModes.ZeroPage,    2, 3);
+newinstr('LDA', 0xB5, AddrModes.ZeroPageX,   2, 4);
+newinstr('LDA', 0xAD, AddrModes.Absolute,    3, 4);
+newinstr('LDA', 0xBD, AddrModes.AbsoluteX,   3, 4);
+newinstr('LDA', 0xB9, AddrModes.AbsoluteY,   3, 4);
+newinstr('LDA', 0xA1, AddrModes.IndirectX,   2, 6);
+newinstr('LDA', 0xB1, AddrModes.IndirectY,   2, 5);
+newinstr('LDX', 0xA2, AddrModes.Immediate,   2, 2);
+newinstr('LDX', 0xA6, AddrModes.ZeroPage,    2, 3);
+newinstr('LDX', 0xB6, AddrModes.ZeroPageY,   2, 4);
+newinstr('LDX', 0xAE, AddrModes.Absolute,    3, 4);
+newinstr('LDX', 0xBE, AddrModes.AbsoluteY,   3, 4);
+newinstr('LDY', 0xA0, AddrModes.Immediate,   2, 2);
+newinstr('LDY', 0xA4, AddrModes.ZeroPage,    2, 3);
+newinstr('LDY', 0xB4, AddrModes.ZeroPageX,   2, 4);
+newinstr('LDY', 0xAC, AddrModes.Absolute,    3, 4);
+newinstr('LDY', 0xBC, AddrModes.AbsoluteX,   3, 4);
+newinstr('LSR', 0x4A, AddrModes.Accumulator, 1, 2);
+newinstr('LSR', 0x46, AddrModes.ZeroPage,    2, 5);
+newinstr('LSR', 0x56, AddrModes.ZeroPageX,   2, 6);
+newinstr('LSR', 0x4E, AddrModes.Absolute,    3, 6);
+newinstr('LSR', 0x5E, AddrModes.AbsoluteX,   3, 7);
+newinstr('NOP', 0xEA, AddrModes.Implied,     1, 2);
+newinstr('ORA', 0x09, AddrModes.Immediate,   2, 2);
+newinstr('ORA', 0x05, AddrModes.ZeroPage,    2, 3);
+newinstr('ORA', 0x15, AddrModes.ZeroPageX,   2, 4);
+newinstr('ORA', 0x0D, AddrModes.Absolute,    3, 4);
+newinstr('ORA', 0x1D, AddrModes.AbsoluteX,   3, 4);
+newinstr('ORA', 0x19, AddrModes.AbsoluteY,   3, 4);
+newinstr('ORA', 0x01, AddrModes.IndirectX,   2, 6);
+newinstr('ORA', 0x11, AddrModes.IndirectY,   2, 5);
+newinstr('PHA', 0x48, AddrModes.Implied,     1, 3);
+newinstr('PHP', 0x08, AddrModes.Implied,     1, 3);
+newinstr('PLA', 0x68, AddrModes.Implied,     1, 4);
+newinstr('PLP', 0x28, AddrModes.Implied,     1, 4);
+newinstr('ROL', 0x2A, AddrModes.Accumulator, 1, 2);
+newinstr('ROL', 0x26, AddrModes.ZeroPage,    2, 5);
+newinstr('ROL', 0x36, AddrModes.ZeroPageX,   2, 6);
+newinstr('ROL', 0x2E, AddrModes.Absolute,    3, 6);
+newinstr('ROL', 0x3E, AddrModes.AbsoluteX,   3, 7);
+newinstr('ROR', 0x6A, AddrModes.Accumulator, 1, 2);
+newinstr('ROR', 0x66, AddrModes.ZeroPage,    2, 5);
+newinstr('ROR', 0x76, AddrModes.ZeroPageX,   2, 6);
+newinstr('ROR', 0x6E, AddrModes.Absolute,    3, 6);
+newinstr('ROR', 0x7E, AddrModes.AbsoluteX,   3, 7);
+newinstr('RTI', 0x4D, AddrModes.Implied,     1, 6);
+newinstr('RTS', 0x60, AddrModes.Implied,     1, 6);
+newinstr('SBC', 0xE9, AddrModes.Immediate,   2, 2);
+newinstr('SBC', 0xE5, AddrModes.ZeroPage,    2, 3);
+newinstr('SBC', 0xF5, AddrModes.ZeroPageX,   2, 4);
+newinstr('SBC', 0xED, AddrModes.Absolute,    3, 4);
+newinstr('SBC', 0xFD, AddrModes.AbsoluteX,   3, 4);
+newinstr('SBC', 0xF9, AddrModes.AbsoluteY,   3, 4);
+newinstr('SBC', 0xE1, AddrModes.IndirectX,   2, 6);
+newinstr('SBC', 0xF1, AddrModes.IndirectY,   2, 5);
+newinstr('SEC', 0x38, AddrModes.Implied,     1, 2);
+newinstr('SED', 0xF8, AddrModes.Implied,     1, 2);
+newinstr('SEI', 0x78, AddrModes.Implied,     1, 2);
+newinstr('STA', 0x85, AddrModes.ZeroPage,    2, 3);
+newinstr('STA', 0x95, AddrModes.ZeroPageX,   2, 4);
+newinstr('STA', 0x80, AddrModes.Absolute,    3, 4);
+newinstr('STA', 0x90, AddrModes.AbsoluteX,   3, 5);
+newinstr('STA', 0x99, AddrModes.AbsoluteY,   3, 5);
+newinstr('STA', 0x81, AddrModes.IndirectX,   2, 6);
+newinstr('STA', 0x91, AddrModes.IndirectY,   2, 6);
+newinstr('STX', 0x86, AddrModes.ZeroPage,    2, 3);
+newinstr('STX', 0x96, AddrModes.ZeroPageY,   2, 4);
+newinstr('STX', 0x8E, AddrModes.Absolute,    3, 4);
+newinstr('STY', 0x84, AddrModes.ZeroPage,    2, 3);
+newinstr('STY', 0x94, AddrModes.ZeroPageX,   2, 4);
+newinstr('STY', 0x8C, AddrModes.Absolute,    3, 4);
+newinstr('TAX', 0xAA, AddrModes.Implied,     1, 2);
+newinstr('TAY', 0xA8, AddrModes.Implied,     1, 2);
+newinstr('TSX', 0xBA, AddrModes.Implied,     1, 2);
+newinstr('TXA', 0x8A, AddrModes.Implied,     1, 2);
+newinstr('TXS', 0x9A, AddrModes.Implied,     1, 2);
+newinstr('TYA', 0x98, AddrModes.Implied,     1, 2);
 
 function asm6502code(code) {
   // Writing machinery
