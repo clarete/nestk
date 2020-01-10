@@ -7,24 +7,17 @@
  * [ ] Cycles
  * [ ] PPU
  * [ ] Input
+ * [ ] Cartridge
+ * [-] iNES format
 
  */
 
-const MNEMONICS = [
-  'ADC', 'AND', 'ASL', 'BCC', 'BCS', 'BEQ', 'BIT', 'BMI', 'BNE', 'BPL', 'BRK',
-  'BVC', 'BVS', 'CLC', 'CLD', 'CLI', 'CLV', 'CMP', 'CPX', 'CPY', 'DEC', 'DEX',
-  'DEY', 'EOR', 'INC', 'INX', 'INY', 'JMP', 'JSR', 'LDA', 'LDX', 'LDY', 'LSR',
-  'NOP', 'ORA', 'PHA', 'PHP', 'PLA', 'PLP', 'ROL', 'ROR', 'RTI', 'RTS', 'SBC',
-  'SEC', 'SED', 'SEI', 'STA', 'STX', 'STY', 'TAX', 'TAY', 'TSX', 'TXA', 'TXS',
-  'TYA',
-];
-
-const CPU6502States = {
-  NotSet: 0,
-  Halt: 1,
-  Running: 2,
-  Step: 3,
-};
+const CARRY_FLAG     = 1 << 0;
+const ZERO_FLAG      = 1 << 1;
+const INTERRUPT_FLAG = 1 << 2;
+const BREAK_FLAG     = 1 << 4;
+const OVERFLOW_FLAG  = 1 << 6;
+const NEGATIVE_FLAG  = 1 << 7;
 
 class CPU6502 {
   constructor(bus) {
@@ -35,11 +28,8 @@ class CPU6502 {
     this.p = 0;          // Status flags
     this.pc = 0;         // Program Counter
 
-    // Memory bus
+    // Memory bus & clock
     this.bus = bus;
-    // CPU States
-    this.state = CPU6502States.NotSet;
-    // Clock
     this.cycles = 0;
   }
 
@@ -89,35 +79,136 @@ class CPU6502 {
   }
 
   run() {
-    while (this.state !== CPU6502States.Halt) {
-      if (this.state === CPU6502States.Step)
-        this.repl();
+    while (true)
       this.step();
-    }
   }
 
-  _instr_LDA(p) {
-    this.a = p;
+  // -- Stack --
+
+  push(value) {
+    this.bus.write(this.s--, value);
+  }
+  pop() {
+    return this.bus.read(this.s++);
   }
 
-  _instr_STA(p) {
-    this.bus.write(p, this.a);
+  // -- Flags --
+
+  flagC(value) {
+    if (value) this.p |= CARRY_FLAG;
+    else this.p &= 0xFF - CARRY_FLAG;
+  }
+  flagZ(value) {
+    if (value === 0) this.p |= ZERO_FLAG;
+    else this.p &= 0xFF - ZERO_FLAG;
+  }
+  flagN(value) {
+    if (value & 0x80 === 0x80) this.p |= NEGATIVE_FLAG;
+    else this.p &= 0xFF - NEGATIVE_FLAG;
+  }
+  flagB(value) {
+    if (value) this.p |= BREAK_FLAG;
+    else this.p &= 0xFF - BREAK_FLAG;
+  }
+  flagI(value) {
+    if (value) this.p |= INTERRUPT_FLAG;
+    else this.p &= 0xFF - INTERRUPT_FLAG;
+  }
+  flagV(value) {
+    if (value) this.p |= OVERFLOW_FLAG;
+    else this.p &= 0xFF - OVERFLOW_FLAG;
+  }
+  flag(flag) {
+    return this.p & flag;
   }
 
-  _instr_LDX(p) {
-    this.x = p;
+  // -- Instructions --
+
+  _instr_NOP(addr) {}
+  _instr_CLC(addr) { this.flagC(true); }
+  _instr_CLI(addr) { this.flagI(true); }
+  _instr_CLV(addr) { this.flagV(true); }
+  _instr_CLD(addr) { /* this.flagD(true); */ }
+
+  _instr_SEC(addr) { this.p |= CARRY_FLAG; }
+  _instr_SEI(addr) { this.p |= INTERRUPT_FLAG; }
+  _instr_SED(addr) { /* this.p |= DECIMAL_FLAG */ }
+
+  _instr_LDA(addr) {
+    this.a = this.bus.read(addr);
+    this.flagZ(this.a);
+    this.flagN(this.a);
+  }
+  _instr_LDX(addr) {
+    this.x = this.bus.read(addr);
+    this.flagZ(this.x);
+    this.flagN(this.x);
+  }
+  _instr_LDY(addr) {
+    this.y = this.bus.read(addr);
+    this.flagZ(this.y);
+    this.flagN(this.y);
   }
 
-  _instr_STX(p) {
-    this.bus.write(p, this.x);
+  _instr_DEC(addr) {
+    this.a--;
+    this.flagZ(this.a);
+    this.flagN(this.a);
   }
-
-  _instr_DEX(p) {
+  _instr_DEX(addr) {
     this.x--;
+    this.flagZ(this.x);
+    this.flagN(this.x);
+  }
+  _instr_DEY(addr) {
+    this.y--;
+    this.flagZ(this.y);
+    this.flagN(this.y);
+  }
+
+  _instr_INC(addr) {
+    const value = this.bus.read(addr) + 1;
+    this.bus.write(addr, value);
+    this.flagZ(value);
+    this.flagN(value);
+  }
+  _instr_INX(addr) {
+    this.x++;
+    this.flagZ(this.x);
+    this.flagN(this.x);
+  }
+  _instr_INY(addr) {
+    this.y++;
+    this.flagZ(this.y);
+    this.flagN(this.y);
+  }
+
+  _instr_STA(addr) {
+    this.bus.write(addr, this.a);
+  }
+  _instr_STX(addr) {
+    this.bus.write(addr, this.x);
+  }
+  _instr_STY(addr) {
+    this.bus.write(addr, this.y);
+  }
+
+  _instr_JMP(addr) {
+    this.pc = this.bus.read(addr);
+  }
+
+  _instr_JSR(addr) {
+    this.pc--;
+    this.push((this.pc >> 8) & 0xFF);
+    this.push(this.pc & 0xFF);
+    this.pc = addr;
   }
 
   _instr_BRK(p) {
-    this.state = CPU6502States.Halt;
+    const num = this.bus.read(0xFFFE) | (this.bus.read(0xFFFF) << 8);
+    this.flagB(true);
+    this.flagI(true);
+    this.pc = num;
   }
 }
 
@@ -355,8 +446,36 @@ const AddrModes = {
   Relative: 13,
 };
 
+const AddrModeNames = {
+  0: 'Implied',
+  1: 'Immediate',
+  2: 'Absolute',
+  3: 'AbsoluteX',
+  4: 'AbsoluteY',
+  5: 'ZeroPage',
+  6: 'ZeroPageX',
+  7: 'ZeroPageY',
+  8: 'Indirect',
+  9: 'IndirectX',
+  10: 'IndirectY',
+  11: 'IndirectPostX',
+  12: 'IndirectPostY',
+  13: 'Relative',
+};
+
+const addrmodename = am => AddrModeNames[am];
+
 const INSTRUCTIONS_BY_MAM = {};
 const INSTRUCTIONS_BY_OPC = {};
+const MNEMONICS = [
+  'ADC', 'AND', 'ASL', 'BCC', 'BCS', 'BEQ', 'BIT', 'BMI', 'BNE', 'BPL', 'BRK',
+  'BVC', 'BVS', 'CLC', 'CLD', 'CLI', 'CLV', 'CMP', 'CPX', 'CPY', 'DEC', 'DEX',
+  'DEY', 'EOR', 'INC', 'INX', 'INY', 'JMP', 'JSR', 'LDA', 'LDX', 'LDY', 'LSR',
+  'NOP', 'ORA', 'PHA', 'PHP', 'PLA', 'PLP', 'ROL', 'ROR', 'RTI', 'RTS', 'SBC',
+  'SEC', 'SED', 'SEI', 'STA', 'STX', 'STY', 'TAX', 'TAY', 'TSX', 'TXA', 'TXS',
+  'TYA',
+];
+
 const getinopc = (opc) => INSTRUCTIONS_BY_OPC[opc];
 const getinstr = (mnemonic, am) => INSTRUCTIONS_BY_MAM[[mnemonic, am]];
 const newinstr = (mnemonic, opc, am, size, cycles) =>
@@ -551,7 +670,8 @@ function asm6502code(code) {
     switch (type) {
     case 'instruction': {
       const instr = getinstr(name, addrmode);
-      if (!instr) throw new Error(`No instr for ${name}`);
+      if (!instr) throw new Error(
+        `No instr for ${name} ${addrmodename(addrmode)}`);
       wByte(instr.opcode);
       if (value) wAddr(value);
     } break;
