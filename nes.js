@@ -249,11 +249,17 @@ function parse6502asm(source) {
   const parseTwoByteHex = () =>
     expect('$') && hex(ntimes(4, parseHexDigit).join(''));
   const parseImmediate = () =>
-    expect('#') && or([parseOneByteHex, parseIdentifier]);
+    expect('#') && or([parseTwoByteHex, parseOneByteHex, parseIdentifier]);
   const parseIndexed = (fn, c) => {
     const value = fn();
     const strs = [`,${c.toUpperCase()}`, `,${c}`];
     or(strs.map(s => () => expectStr(s)));
+    return value;
+  };
+  const parseJMPIndirect = () => {
+    expect('('); ws();
+    const value = or([parseTwoByteHex, parseIdentifier]);
+    expect(')'); ws();
     return value;
   };
   const parseIndirect = (c) => {
@@ -289,14 +295,14 @@ function parse6502asm(source) {
       // respectively
       () => [AddrModes.Absolute, parseTwoByteHex()],
       () => [AddrModes.ZeroPage, parseOneByteHex()],
-      // 7. Pre-indexed indirect
-      () => [AddrModes.IndirectX, parseIndirect('x')],
-      () => [AddrModes.IndirectY, parseIndirect('y')],
-      // 8. Post-indexed indirect
+      // 7. Post-indexed indirect
       () => [AddrModes.IndirectPostX, parseIndirectPost('x')],
       () => [AddrModes.IndirectPostY, parseIndirectPost('y')],
+      // 8. Pre-indexed indirect
+      () => [AddrModes.IndirectX, parseIndirect('x')],
+      () => [AddrModes.IndirectY, parseIndirect('y')],
       // 9. Indirect
-      () => [AddrModes.Indirect, parseIndirect(null)],
+      () => [AddrModes.Indirect, parseJMPIndirect()],
       // 10. Relative
       () => [AddrModes.Relative, parseIdentifier()]]);
   };
