@@ -222,54 +222,40 @@ class Instruction {
   }
 }
 
-class INES {
-  constructor(buffer) {
-    this.buffer = buffer;
-    this.cursor = 0;
-  }
+function inesparser(buffer) {
+  let cursor = 0;
+  const read8 = () => buffer.readInt8(cursor++);
+  // Magic Constant $4E$45$53$1A ("NES" followed by MS-DOS EOF)
+  if (buffer.readUInt32LE() !== 0x1A53454E)
+    throw new Error('Invalid iNES header');
+  // Skip the length of the magic number
+  cursor += 4;
+  // Size of PRG ROM in 16 KB units
+  const prgsize = read8() * 0x4000;
+  // Size of CHR ROM in 8 KB units (Value 0 means the board uses CHR RAM)
+  const chrsize = read8() * 0x2000;
 
-  read8() {
-    return this.buffer.readInt8(this.cursor++);
-  }
+  /*
+    76543210
+    ||||||||
+    |||||||+- Mirroring: 0: horizontal (vertical arrangement) (CIRAM A10 = PPU A11)
+    |||||||              1: vertical (horizontal arrangement) (CIRAM A10 = PPU A10)
+    ||||||+-- 1: Cartridge contains battery-backed PRG RAM ($6000-7FFF) or other persistent memory
+    |||||+--- 1: 512-byte trainer at $7000-$71FF (stored before PRG data)
+    ||||+---- 1: Ignore mirroring control or above mirroring bit; instead provide four-screen VRAM
+    ++++----- Lower nybble of mapper number
+  */
+  const flags6 = read8();
+  const trainingEnd = (flags6 & 4) == 4 ? 512 : 0;
 
-  parseHeader() {
-    // 0-3: Constant $4E $45 $53 $1A ("NES" followed by MS-DOS end-of-file)
-    this.read8();               // 78: N
-    this.read8();               // 69: E
-    this.read8();               // 83: S
-    this.read8();               // 26: MSDOS EOL
-    // 4: Size of PRG ROM in 16 KB units
-    this.pgrRomSize = this.read8();
-    // 5: Size of CHR ROM in 8 KB units (Value 0 means the board uses CHR RAM)
-    this.chrRomSize = this.read8();
-    // 6: Flags 6 - Mapper, mirroring, battery, trainer
-    this.flags6 = this.read8();
-    // 7: Flags 7 - Mapper, VS/Playchoice, NES 2.0
-    this.flags7 = this.read8();
-    // 8: Flags 8 - PRG-RAM size (rarely used extension)
-    this.flags8 = this.read8();
-    // 9: Flags 9 - TV system (rarely used extension)
-    this.flags9 = this.read8();
-    // 10: Flags 10 - TV system, PRG-RAM presence (unofficial, rarely used extension)
-    this.flags10 = this.read8();
-  }
-
-  parse() {
-    // 1: Header (16 bytes)
-    this.parseHeader();
-    console.log(this.cursor);
-    // 2: Trainer, if present (0 or 512 bytes)
-
-    // 3: PRG ROM data (16384 * x bytes)
-
-    // 4: CHR ROM data, if present (8192 * y bytes)
-
-    // 5: PlayChoice INST-ROM, if present (0 or 8192 bytes)
-
-    // 6: PlayChoice PROM, if present (16 bytes Data, 16 bytes
-    // CounterOut) (this is often missing, see PC10 ROM-Images for
-    // details)
-  }
+  // Read the program data by resetting the cursor to skip over the firstfew
+  // bytes to get it right the program starts. We're finishin off the parsing
+  // without reading all the flags and without reading possible program RAM
+  // that some cartridges used.
+  cursor = 16 + trainingEnd;
+  const prg = buffer.slice(cursor, prgsize); cursor += prgsize;
+  const chr = buffer.slice(cursor, chrsize);
+  return { prg, chr };
 }
 
 class ParsingError extends Error {}
