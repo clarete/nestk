@@ -670,6 +670,16 @@ function asm6502code(code) {
   return buffer;
 }
 
+class Cartridge {
+  constructor({ prg, chr }) {
+    this.prg = prg;
+    this.chr = chr;
+  }
+  static fromRomData(romData) {
+    return new Cartridge(inesparser(romData));
+  }
+}
+
 class ArrayBus extends Array {
   constructor(s) {
     super(s).fill(0);
@@ -692,9 +702,12 @@ module.exports = {
   AddrModes,
   ArrayBus,
   Instruction,
-  INES,
   CPU6502,
+  Cartridge,
   addrmodename,
   asm6502code,
   parse6502asm,
+  getinopc,
+  getinstr,
+  inesparser,
 };
