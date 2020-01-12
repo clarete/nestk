@@ -691,9 +691,8 @@ class ArrayBus extends Array {
     this[addr] = data;
   }
   writeBuffer(addr, buffer) {
-    let cursor = 0x0600;
     for (const b of buffer)
-      this.write(cursor++, b);
+      this.write(addr++, b);
   }
 }
 
