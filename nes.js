@@ -194,7 +194,7 @@ class CPU6502 {
   }
 
   _instr_JMP(addr) {
-    this.pc = this.bus.read(addr);
+    this.pc = addr;
   }
 
   _instr_JSR(addr) {

@@ -155,5 +155,22 @@ describe('6502 CPU', () => {
       expect(cpu.a).toBe(0xdd);
     });
 
+    it("should read absolute indirect parameters", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('JMP ($f0f1)')));
+      cpu.bus.write(0xf0f1, 0xf0f2);
+      cpu.step();
+      expect(cpu.pc).toBe(0xf0f2);
+    });
+
+    it("should work with JMP absolute addressing mode", () => {
+      const cpu = new nesjs.CPU6502(new nesjs.ArrayBus(65536));
+      cpu.pc = 0x0600;
+      cpu.bus.writeBuffer(cpu.pc, nesjs.asm6502code(nesjs.parse6502asm('JMP $f0f1')));
+      cpu.step();
+      expect(cpu.pc).toBe(0xf0f1);
+    });
+
   });
 });
