@@ -60,8 +60,8 @@ describe('6502 ASM Parser', () => {
 
     it("should parse indirect address mode", () => {
       const parsed = nesjs.parse6502asm(
+        'JMP ($2000)  \n' +
         'STA (lb)     \n' +
-        'STA ($20)    \n' +
         'STX ($21,X)  \n' +
         'STY ($22,Y)  \n' +
         'STX ($21),X  \n' +
@@ -72,8 +72,8 @@ describe('6502 ASM Parser', () => {
         'STY (lb),Y   \n'
       );
       expect(parsed).toEqual([
+        ['instruction', 'JMP', nesjs.AddrModes.Indirect, 0x2000],
         ['instruction', 'STA', nesjs.AddrModes.Indirect, 'lb'],
-        ['instruction', 'STA', nesjs.AddrModes.Indirect, 0x20],
         ['instruction', 'STX', nesjs.AddrModes.IndirectX, 0x21],
         ['instruction', 'STY', nesjs.AddrModes.IndirectY, 0x22],
         ['instruction', 'STX', nesjs.AddrModes.IndirectPostX, 0x21],
