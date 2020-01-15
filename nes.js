@@ -61,8 +61,8 @@ class CPU6502 {
     case AddrModes.AbsoluteY: return addr16(this.y);
     // Indirect address or pointers
     case AddrModes.Indirect: return this.bus.read(addr16());
-    // For branches
-    case AddrModes.Relative: return addr8();
+    // For branches. The +1 accounts for the increment made by `addr8()'
+    case AddrModes.Relative: return addr8(this.pc+1);
     default:
       throw new Error(`Invalid Address Mode ${instr.addressingMode}`);
     }
@@ -74,8 +74,9 @@ class CPU6502 {
     if (!instruction) throw new Error(`Invalid opcode ${opcode}`);
     const parameter = this.parameter(instruction);
     const executor = this[`_instr_${instruction.mnemonic}`];
-    if (!executor) throw new Error(`Invalid mnemonic ${instruction.mnemonic}`);
-    executor.bind(this)(parameter);
+    if (!executor)
+      throw new Error(`No executor for ${instruction}`);
+    return executor.bind(this)(parameter);
   }
 
   run() {
@@ -103,7 +104,7 @@ class CPU6502 {
     else this.p &= 0xFF - ZERO_FLAG;
   }
   flagN(value) {
-    if (value & 0x80 === 0x80) this.p |= NEGATIVE_FLAG;
+    if (value) this.p |= NEGATIVE_FLAG;
     else this.p &= 0xFF - NEGATIVE_FLAG;
   }
   flagB(value) {
@@ -209,6 +210,46 @@ class CPU6502 {
     this.flagB(true);
     this.flagI(true);
     this.pc = num;
+  }
+
+  _instr_BCS(addr) {
+    if (this.flag(CARRY_FLAG))
+      this.pc = addr;
+  }
+  _instr_BCC(addr) {
+    if (!this.flag(CARRY_FLAG))
+      this.pc = addr;
+  }
+  _instr_BEQ(addr) {
+    if (this.flag(ZERO_FLAG))
+      this.pc = addr;
+  }
+  _instr_BNE(addr) {
+    if (!this.flag(ZERO_FLAG))
+      this.pc = addr;
+  }
+  _instr_BVS(addr) {
+    if (this.flag(OVERFLOW_FLAG))
+      this.pc = addr;
+  }
+  _instr_BVC(addr) {
+    if (!this.flag(OVERFLOW_FLAG))
+      this.pc = addr;
+  }
+  _instr_BMI(addr) {
+    if (this.flag(NEGATIVE_FLAG))
+      this.pc = addr;
+  }
+  _instr_BPL(addr) {
+    if (!this.flag(NEGATIVE_FLAG))
+      this.pc = addr;
+  }
+  _instr_BIT(addr) {
+    const value = this.bus.read(addr);
+    // N:=b7 V:=b6 Z:=A&{adr}
+    this.flagN(value & 0x80);
+    this.flagV(value & 0x40);
+    this.flagZ(this.a & value);
   }
 }
 
@@ -494,7 +535,7 @@ newinstr('BEQ', 0xF0, AddrModes.Relative,    2, 2);
 newinstr('BIT', 0x24, AddrModes.ZeroPage,    2, 3);
 newinstr('BIT', 0x2C, AddrModes.Absolute,    3, 4);
 newinstr('BMI', 0x30, AddrModes.Relative,    2, 2);
-newinstr('BMI', 0xD0, AddrModes.Relative,    2, 2);
+newinstr('BNE', 0xD0, AddrModes.Relative,    2, 2);
 newinstr('BPL', 0x10, AddrModes.Relative,    2, 2);
 newinstr('BRK', 0x00, AddrModes.Implied,     1, 7);
 newinstr('BVC', 0x50, AddrModes.Relative,    2, 2);
@@ -527,7 +568,7 @@ newinstr('EOR', 0x49, AddrModes.Immediate,   2, 2);
 newinstr('EOR', 0x45, AddrModes.ZeroPage,    2, 3);
 newinstr('EOR', 0x55, AddrModes.ZeroPageX,   2, 4);
 newinstr('EOR', 0x40, AddrModes.Absolute,    3, 4);
-newinstr('EOR', 0x50, AddrModes.AbsoluteX,   3, 4);
+//newinstr('EOR', 0x50, AddrModes.AbsoluteX,   3, 4);
 newinstr('EOR', 0x59, AddrModes.AbsoluteY,   3, 4);
 newinstr('EOR', 0x41, AddrModes.IndirectX,   2, 6);
 newinstr('EOR', 0x51, AddrModes.IndirectY,   2, 5);
@@ -602,7 +643,7 @@ newinstr('SEI', 0x78, AddrModes.Implied,     1, 2);
 newinstr('STA', 0x85, AddrModes.ZeroPage,    2, 3);
 newinstr('STA', 0x95, AddrModes.ZeroPageX,   2, 4);
 newinstr('STA', 0x80, AddrModes.Absolute,    3, 4);
-newinstr('STA', 0x90, AddrModes.AbsoluteX,   3, 5);
+newinstr('STA', 0x9D, AddrModes.AbsoluteX,   3, 5);
 newinstr('STA', 0x99, AddrModes.AbsoluteY,   3, 5);
 newinstr('STA', 0x81, AddrModes.IndirectX,   2, 6);
 newinstr('STA', 0x91, AddrModes.IndirectY,   2, 6);
