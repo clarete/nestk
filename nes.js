@@ -126,14 +126,14 @@ class CPU6502 {
   // -- Instructions --
 
   _instr_NOP(addr) {}
-  _instr_CLC(addr) { this.flagC(true); }
-  _instr_CLI(addr) { this.flagI(true); }
-  _instr_CLV(addr) { this.flagV(true); }
-  _instr_CLD(addr) { /* this.flagD(true); */ }
+  _instr_CLC(addr) { this.flagC(false); }
+  _instr_CLI(addr) { this.flagI(false); }
+  _instr_CLV(addr) { this.flagV(false); }
+  _instr_CLD(addr) { /* this.flagD(false); */ }
 
-  _instr_SEC(addr) { this.p |= CARRY_FLAG; }
-  _instr_SEI(addr) { this.p |= INTERRUPT_FLAG; }
-  _instr_SED(addr) { /* this.p |= DECIMAL_FLAG */ }
+  _instr_SEC(addr) { this.flagC(true); }
+  _instr_SEI(addr) { this.flagI(true); }
+  _instr_SED(addr) { /* this.flagD(true); */ }
 
   _instr_LDA(addr) {
     this.a = this.bus.read(addr);
