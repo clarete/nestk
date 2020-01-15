@@ -24,8 +24,8 @@ class CPU6502 {
     this.a = 0;          // General purpose accumulator
     this.x = 0;          // Index register
     this.y = 0;          // Index register
-    this.s = 0;          // Stack pointer
-    this.p = 0;          // Status flags
+    this.s = 0xFD;       // Stack pointer
+    this.p = 0x24;       // Status flags
     this.pc = 0;         // Program Counter
 
     // Memory bus & clock
