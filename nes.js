@@ -90,7 +90,7 @@ class CPU6502 {
     this.bus.write(this.s--, value);
   }
   pop() {
-    return this.bus.read(this.s++);
+    return this.bus.read(++this.s);
   }
 
   // -- Flags --
@@ -203,6 +203,12 @@ class CPU6502 {
     this.push((this.pc >> 8) & 0xFF);
     this.push(this.pc & 0xFF);
     this.pc = addr;
+  }
+
+  _instr_RTS(addr) {
+    const [lo, hi] = [this.pop(), this.pop()];
+    const pc = ((hi & 0xFF) << 8) | (lo & 0xFF);
+    this.pc = pc + 1;
   }
 
   _instr_BRK(p) {
