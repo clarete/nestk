@@ -229,6 +229,35 @@ class CPU6502 {
     this.flagS(this.y);
   }
 
+  _instr_TAX(addr) {
+    this.x = this.a;
+    this.flagZ(this.x);
+    this.flagS(this.x);
+  }
+  _instr_TAY(addr) {
+    this.y = this.a;
+    this.flagZ(this.y);
+    this.flagS(this.y);
+  }
+  _instr_TYA(addr) {
+    this.a = this.y;
+    this.flagZ(this.a);
+    this.flagS(this.a);
+  }
+  _instr_TXA(addr) {
+    this.a = this.x;
+    this.flagZ(this.a);
+    this.flagS(this.a);
+  }
+  _instr_TSX(addr) {
+    this.x = this.s;
+    this.flagZ(this.x);
+    this.flagS(this.x);
+  }
+  _instr_TXS(addr) {
+    this.s = this.x;
+  }
+
   _instr_STA(addr) {
     this.bus.write(addr, this.a);
   }
