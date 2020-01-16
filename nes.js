@@ -159,14 +159,25 @@ class CPU6502 {
 
   _instr_ADC(addr) {
     const value = this.bus.read(addr);
-    const res = value + this.a + (this.flag(CARRY_FLAG) ? 1 : 0);
-    const overflow = ((this.a ^ res) & (value ^ res) & 0x80) !== 0;
+    const res = this.a + value + (+this.flag(CARRY_FLAG));
+    const overflow = ~(this.a ^ value) & (this.a ^ res) & 0x80;
     if (overflow) this.p |= OVERFLOW_FLAG;
     else this.p &= ~OVERFLOW_FLAG;
     this.a = res & 0xFF;
     this.flagZ(this.a);
     this.flagS(this.a);
     this.flagC(res > 0xFF);
+  }
+  _instr_SBC(addr) {
+    const value = ~this.bus.read(addr);
+    const res = this.a + value + (+this.flag(CARRY_FLAG));
+    const overflow = ~(this.a ^ value) & (this.a ^ res) & 0x80;
+    if (overflow) this.p |= OVERFLOW_FLAG;
+    else this.p &= ~OVERFLOW_FLAG;
+    this.a = res & 0xFF;
+    this.flagZ(this.a);
+    this.flagS(this.a);
+    this.flagC(res >= 0);
   }
 
   _instr_LDA(addr) {
