@@ -15,6 +15,7 @@
 const CARRY_FLAG     = 1 << 0;
 const ZERO_FLAG      = 1 << 1;
 const INTERRUPT_FLAG = 1 << 2;
+const DECIMAL_FLAG   = 1 << 3;
 const BREAK_FLAG     = 1 << 4;
 const OVERFLOW_FLAG  = 1 << 6;
 const NEGATIVE_FLAG  = 1 << 7;
@@ -104,8 +105,12 @@ class CPU6502 {
     else this.p &= 0xFF - ZERO_FLAG;
   }
   flagN(value) {
-    if (value) this.p |= NEGATIVE_FLAG;
+    if (value & 0x80 === 0x80) this.p |= NEGATIVE_FLAG;
     else this.p &= 0xFF - NEGATIVE_FLAG;
+  }
+  flagD(value) {
+    if (value) this.p |= DECIMAL_FLAG;
+    else this.p &= 0xFF - DECIMAL_FLAG;
   }
   flagB(value) {
     if (value) this.p |= BREAK_FLAG;
@@ -126,14 +131,14 @@ class CPU6502 {
   // -- Instructions --
 
   _instr_NOP(addr) {}
+  _instr_CLV(addr) { this.flagV(false); }
   _instr_CLC(addr) { this.flagC(false); }
   _instr_CLI(addr) { this.flagI(false); }
-  _instr_CLV(addr) { this.flagV(false); }
-  _instr_CLD(addr) { /* this.flagD(false); */ }
+  _instr_CLD(addr) { this.flagD(false); }
 
   _instr_SEC(addr) { this.flagC(true); }
   _instr_SEI(addr) { this.flagI(true); }
-  _instr_SED(addr) { /* this.flagD(true); */ }
+  _instr_SED(addr) { this.flagD(true); }
 
   _instr_LDA(addr) {
     this.a = this.bus.read(addr);
