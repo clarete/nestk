@@ -145,6 +145,28 @@ class CPU6502 {
     this.flagZ(this.a);
     this.flagS(this.a);
   }
+  _instr_ORA(addr) {
+    this.a |= this.bus.read(addr);
+    this.flagZ(this.a);
+    this.flagS(this.a);
+  }
+  _instr_EOR(addr) {
+    this.a ^= this.bus.read(addr);
+    this.flagZ(this.a);
+    this.flagS(this.a);
+  }
+
+  _instr_ADC(addr) {
+    const value = this.bus.read(addr);
+    const res = value + this.a + (this.flag(CARRY_FLAG) ? 1 : 0);
+    const overflow = ((this.a ^ res) & (value ^ res) & 0x80) !== 0;
+    if (overflow) this.p |= OVERFLOW_FLAG;
+    else this.p &= ~OVERFLOW_FLAG;
+    this.a = res & 0xFF;
+    this.flagZ(this.a);
+    this.flagS(this.a);
+    this.flagC(res > 0xFF);
+  }
 
   _instr_LDA(addr) {
     this.a = this.bus.read(addr);
@@ -284,11 +306,21 @@ class CPU6502 {
     this.flagZ(value & this.a);
   }
 
-  _instr_CMP(addr) {
-    const value = this.a - this.bus.read(addr);
-    this.flagC(value < 0x100);
+  _compare(register, addr) {
+    const value = register - this.bus.read(addr);
+    this.flagC(value >= 0);
     this.flagZ(value);
     this.flagS(value);
+  }
+
+  _instr_CMP(addr) {
+    this._compare(this.a, addr);
+  }
+  _instr_CPX(addr) {
+    this._compare(this.x, addr);
+  }
+  _instr_CPY(addr) {
+    this._compare(this.y, addr);
   }
 }
 
