@@ -140,6 +140,12 @@ class CPU6502 {
   _instr_SEI(addr) { this.flagI(true); }
   _instr_SED(addr) { this.flagD(true); }
 
+  _instr_AND(addr) {
+    this.a &= this.bus.read(addr);
+    this.flagZ(this.a);
+    this.flagN(this.a);
+  }
+
   _instr_LDA(addr) {
     this.a = this.bus.read(addr);
     this.flagZ(this.a);
@@ -216,6 +222,22 @@ class CPU6502 {
     this.pc = pc + 1;
   }
 
+  _instr_PHA(addr) {
+    this.push(this.a);
+  }
+  _instr_PHP(addr) {
+    this.push(this.p | 0b00110000);
+  }
+
+  _instr_PLA(addr) {
+    this.a = this.pop();
+    this.flagZ(this.a);
+    this.flagN(this.a);
+  }
+  _instr_PLP(addr) {
+    this.p = this.pop() & ~BREAK_FLAG;
+  }
+
   _instr_BRK(p) {
     const num = this.bus.read(0xFFFE) | (this.bus.read(0xFFFF) << 8);
     this.flagB(true);
@@ -257,10 +279,16 @@ class CPU6502 {
   }
   _instr_BIT(addr) {
     const value = this.bus.read(addr);
-    // N:=b7 V:=b6 Z:=A&{adr}
-    this.flagN(value & 0x80);
-    this.flagV(value & 0x40);
+    this.flagN(value);
+    this.flagV(value);
     this.flagZ(this.a & value);
+  }
+
+  _instr_CMP(addr) {
+    const value = this.a - this.bus.read(addr);
+    this.flagC(value < 0x100);
+    this.flagZ(value);
+    this.flagN(value);
   }
 }
 
