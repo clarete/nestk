@@ -18,7 +18,7 @@ const INTERRUPT_FLAG = 1 << 2;
 const DECIMAL_FLAG   = 1 << 3;
 const BREAK_FLAG     = 1 << 4;
 const OVERFLOW_FLAG  = 1 << 6;
-const NEGATIVE_FLAG  = 1 << 7;
+const SIGN_FLAG      = 1 << 7;
 
 class CPU6502 {
   constructor(bus) {
@@ -96,33 +96,33 @@ class CPU6502 {
 
   // -- Flags --
 
-  flagC(value) {
-    if (value) this.p |= CARRY_FLAG;
-    else this.p &= 0xFF - CARRY_FLAG;
+  flagS(value) {
+    if ((value & 0x80) === 0x80) this.p |= SIGN_FLAG;
+    else this.p &= ~SIGN_FLAG;
   }
-  flagZ(value) {
-    if (value === 0) this.p |= ZERO_FLAG;
-    else this.p &= 0xFF - ZERO_FLAG;
-  }
-  flagN(value) {
-    if (value & 0x80 === 0x80) this.p |= NEGATIVE_FLAG;
-    else this.p &= 0xFF - NEGATIVE_FLAG;
-  }
-  flagD(value) {
-    if (value) this.p |= DECIMAL_FLAG;
-    else this.p &= 0xFF - DECIMAL_FLAG;
+  flagV(value) {
+    if ((value & 0x40) === 0x40) this.p |= OVERFLOW_FLAG;
+    else this.p &= ~OVERFLOW_FLAG;
   }
   flagB(value) {
     if (value) this.p |= BREAK_FLAG;
-    else this.p &= 0xFF - BREAK_FLAG;
+    else this.p &= ~BREAK_FLAG;
+  }
+  flagD(value) {
+    if (value) this.p |= DECIMAL_FLAG;
+    else this.p &= ~DECIMAL_FLAG;
   }
   flagI(value) {
     if (value) this.p |= INTERRUPT_FLAG;
-    else this.p &= 0xFF - INTERRUPT_FLAG;
+    else this.p &= ~INTERRUPT_FLAG;
   }
-  flagV(value) {
-    if (value) this.p |= OVERFLOW_FLAG;
-    else this.p &= 0xFF - OVERFLOW_FLAG;
+  flagZ(value) {
+    if (value === 0) this.p |= ZERO_FLAG;
+    else this.p &= ~ZERO_FLAG;
+  }
+  flagC(value) {
+    if (value) this.p |= CARRY_FLAG;
+    else this.p &= ~CARRY_FLAG;
   }
   flag(flag) {
     return this.p & flag;
@@ -143,56 +143,56 @@ class CPU6502 {
   _instr_AND(addr) {
     this.a &= this.bus.read(addr);
     this.flagZ(this.a);
-    this.flagN(this.a);
+    this.flagS(this.a);
   }
 
   _instr_LDA(addr) {
     this.a = this.bus.read(addr);
     this.flagZ(this.a);
-    this.flagN(this.a);
+    this.flagS(this.a);
   }
   _instr_LDX(addr) {
     this.x = this.bus.read(addr);
     this.flagZ(this.x);
-    this.flagN(this.x);
+    this.flagS(this.x);
   }
   _instr_LDY(addr) {
     this.y = this.bus.read(addr);
     this.flagZ(this.y);
-    this.flagN(this.y);
+    this.flagS(this.y);
   }
 
   _instr_DEC(addr) {
     this.a--;
     this.flagZ(this.a);
-    this.flagN(this.a);
+    this.flagS(this.a);
   }
   _instr_DEX(addr) {
     this.x--;
     this.flagZ(this.x);
-    this.flagN(this.x);
+    this.flagS(this.x);
   }
   _instr_DEY(addr) {
     this.y--;
     this.flagZ(this.y);
-    this.flagN(this.y);
+    this.flagS(this.y);
   }
 
   _instr_INC(addr) {
     const value = this.bus.read(addr) + 1;
     this.bus.write(addr, value);
     this.flagZ(value);
-    this.flagN(value);
+    this.flagS(value);
   }
   _instr_INX(addr) {
     this.x++;
     this.flagZ(this.x);
-    this.flagN(this.x);
+    this.flagS(this.x);
   }
   _instr_INY(addr) {
     this.y++;
     this.flagZ(this.y);
-    this.flagN(this.y);
+    this.flagS(this.y);
   }
 
   _instr_STA(addr) {
@@ -232,7 +232,7 @@ class CPU6502 {
   _instr_PLA(addr) {
     this.a = this.pop();
     this.flagZ(this.a);
-    this.flagN(this.a);
+    this.flagS(this.a);
   }
   _instr_PLP(addr) {
     this.p = this.pop() & ~BREAK_FLAG;
@@ -270,25 +270,25 @@ class CPU6502 {
       this.pc = addr;
   }
   _instr_BMI(addr) {
-    if (this.flag(NEGATIVE_FLAG))
+    if (this.flag(SIGN_FLAG))
       this.pc = addr;
   }
   _instr_BPL(addr) {
-    if (!this.flag(NEGATIVE_FLAG))
+    if (!this.flag(SIGN_FLAG))
       this.pc = addr;
   }
   _instr_BIT(addr) {
     const value = this.bus.read(addr);
-    this.flagN(value);
+    this.flagS(value);
     this.flagV(value);
-    this.flagZ(this.a & value);
+    this.flagZ(value & this.a);
   }
 
   _instr_CMP(addr) {
     const value = this.a - this.bus.read(addr);
     this.flagC(value < 0x100);
     this.flagZ(value);
-    this.flagN(value);
+    this.flagS(value);
   }
 }
 
