@@ -197,17 +197,17 @@ class CPU6502 {
   }
 
   _instr_DEC(addr) {
-    this.a--;
+    if (--this.a < 0) this.a = 0xFF;
     this.flagZ(this.a);
     this.flagS(this.a);
   }
   _instr_DEX(addr) {
-    this.x--;
+    if (--this.x < 0) this.x = 0xFF;
     this.flagZ(this.x);
     this.flagS(this.x);
   }
   _instr_DEY(addr) {
-    this.y--;
+    if (--this.y < 0) this.y = 0xFF;
     this.flagZ(this.y);
     this.flagS(this.y);
   }
@@ -219,12 +219,12 @@ class CPU6502 {
     this.flagS(value);
   }
   _instr_INX(addr) {
-    this.x++;
+    if (++this.x > 0xFF) this.x = 0;
     this.flagZ(this.x);
     this.flagS(this.x);
   }
   _instr_INY(addr) {
-    this.y++;
+    if (++this.y > 0xFF) this.y = 0;
     this.flagZ(this.y);
     this.flagS(this.y);
   }
