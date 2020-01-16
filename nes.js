@@ -17,6 +17,7 @@ const ZERO_FLAG      = 1 << 1;
 const INTERRUPT_FLAG = 1 << 2;
 const DECIMAL_FLAG   = 1 << 3;
 const BREAK_FLAG     = 1 << 4;
+const UNUSED_FLAG    = 1 << 5;
 const OVERFLOW_FLAG  = 1 << 6;
 const SIGN_FLAG      = 1 << 7;
 
@@ -257,7 +258,7 @@ class CPU6502 {
     this.flagS(this.a);
   }
   _instr_PLP(addr) {
-    this.p = this.pop() & ~BREAK_FLAG;
+    this.p = (this.pop() | UNUSED_FLAG) & ~BREAK_FLAG;
   }
 
   _instr_BRK(p) {
