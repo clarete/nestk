@@ -14,8 +14,10 @@ const hex = (data, padSize=2, padChr='0') => data
   .toUpperCase()
   .padStart(padSize, padChr);
 
-const formatParameter = (savedState, instruction, data) => {
+const formatParameter = (instruction, data) => {
   let suffix = '';
+  const [, p8, p8i] = data;
+  const p16 = (p8i << 8) & (p8 | 0xFF);
   switch (instruction.mnemonic) {
   case 'STA': suffix = ` = ${hex(cpu.a)}`; break;
   case 'STX': suffix = ` = ${hex(cpu.x)}`; break;
@@ -33,14 +35,17 @@ const formatParameter = (savedState, instruction, data) => {
   case nes.AddrModes.Accumulator:
     return 'A';
   case nes.AddrModes.Absolute:
+    if (['JMP', 'JSR'].includes(instruction.mnemonic))
+      return `$${formattedData}`;
+    return `$${formattedData} = ${hex(cpu.bus.read(p16))}`;
   case nes.AddrModes.ZeroPage:
-    return `$${formattedData}${suffix}`;
+    return `$${formattedData} = ${hex(cpu.bus.read(p8 & 0xFF))}`;
   case nes.AddrModes.Immediate:
     return `#$${formattedData}${suffix}`;
   case nes.AddrModes.AbsoluteX:
     return `${formattedData}${suffix}`;
   case nes.AddrModes.Relative:
-    return `$${hex(savedState.pc + instruction.size + parseInt(data[1], 16))}`;
+    return `$${hex(cpu.pc - 2 + instruction.size + parseInt(data[1], 16))}`;
   default:
     console.log(instruction);
     throw new Error(`UNKNOWN ADDR MODE ${instruction.addressingMode}`);
@@ -55,7 +60,7 @@ const logLines = fs
   .toString()
   .split('\n');
 
-function diff(i, a, b) {
+function diff(a, b) {
   // Ignore cycles & scanlines for now
   const [aa] = a.split('CYC');
   const [bb] = b.split('CYC');
@@ -68,14 +73,8 @@ function diff(i, a, b) {
   }
 }
 
-function clone(obj) {
-  const c = Object.create(Object.getPrototypeOf(obj), Object.getOwnPropertyDescriptors(obj));
-  // c.bus = obj.bus.slice();
-  return c;
-}
-
 while (remaining-- > 0) {
-  const savedState = clone(cpu);
+  const pc = cpu.pc;
   const opcaddr = cpu.pc.toString(16).toUpperCase();
   const opcode = cpu.bus.read(cpu.pc);
   const instruction = nes.getinopc(opcode);
@@ -85,32 +84,33 @@ while (remaining-- > 0) {
   const data = [];
   for (let i = 0; i < instruction.size; i++)
     data.push(hex(cpu.bus.read(cpu.pc++)));
-  // Revert the Program Counter to the saved location right before the
-  // instructionwe just logged above
-  cpu.pc = savedState.pc;
-  // Run the one instruction on the CPU
-  cpu.step();
 
   const bigEndianData = data
     .map(x => hex(x.toString(16)))
     .join(' ')
     .padEnd(8);
 
-  const address = formatParameter(savedState, instruction, data).padEnd(27);
+  const address = formatParameter(instruction, data).padEnd(27);
   const logmsg = [
     opcaddr, '',
     bigEndianData, '',
     instruction.mnemonic,
     address,
-    `A:${hex(savedState.a)}`,
-    `X:${hex(savedState.x)}`,
-    `Y:${hex(savedState.y)}`,
-    `P:${hex(savedState.p)}`,
-    `SP:${hex(savedState.s)}`,
+    `A:${hex(cpu.a)}`,
+    `X:${hex(cpu.x)}`,
+    `Y:${hex(cpu.y)}`,
+    `P:${hex(cpu.p)}`,
+    `SP:${hex(cpu.s)}`,
     `CYC:${hex(0, 3, ' ')}`,
     `SL:${0}`
   ].join(' ');
 
   // Compare and print out the stuff
-  diff(savedState, logmsg, logLines.shift());
+  diff(logmsg, logLines.shift());
+
+  // Revert the Program Counter to the saved location right before the
+  // instructionwe just logged above
+  cpu.pc = pc;
+  // Run the one instruction on the CPU
+  cpu.step();
 }
