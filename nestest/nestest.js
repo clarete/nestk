@@ -17,7 +17,7 @@ const hex = (data, padSize=2, padChr='0') => data
 const formatParameter = (savedState, instruction, data) => {
   let suffix = '';
   switch (instruction.mnemonic) {
-  case 'STA': suffix = ` = ${hex(savedState.a)}`; break;
+  case 'STA': suffix = ` = ${hex(cpu.a)}`; break;
   case 'STX': suffix = ` = ${hex(cpu.x)}`; break;
   case 'STY': suffix = ` = ${hex(cpu.y)}`; break;
   case 'BIT': suffix = ` = ${hex(cpu.a)}`; break;
@@ -30,6 +30,8 @@ const formatParameter = (savedState, instruction, data) => {
   switch (instruction.addressingMode) {
   case nes.AddrModes.Implied:
     return suffix;
+  case nes.AddrModes.Accumulator:
+    return 'A';
   case nes.AddrModes.Absolute:
   case nes.AddrModes.ZeroPage:
     return `$${formattedData}${suffix}`;
@@ -41,7 +43,7 @@ const formatParameter = (savedState, instruction, data) => {
     return `$${hex(savedState.pc + instruction.size + parseInt(data[1], 16))}`;
   default:
     console.log(instruction);
-    throw new Error(`Unknown addr mode ${instruction.addressingMode}`);
+    throw new Error(`UNKNOWN ADDR MODE ${instruction.addressingMode}`);
   }
 };
 

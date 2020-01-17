@@ -42,14 +42,14 @@ class CPU6502 {
     const addr16 = (offset=0) => {
       const lo = this.bus.read(this.pc++);
       const hi = this.bus.read(this.pc++);
-      const pos = hi << 8 | (lo & 0x00ff);
+      const pos = (hi << 8) | (lo & 0x00ff);
       return pos + offset;
     };
     switch (instr.addressingMode) {
-    // This impplied mode could either mean no parameters for the
-    // instruction (or the instruction operates on the data within the
-    // acumulator register, which they can do directly)
+    // This impplied by the instruction
     case AddrModes.Implied: return undefined;
+    // Bip-bop
+    case AddrModes.Accumulator: return this.a;
     // Should return what's right under the Program Counter
     case AddrModes.Immediate: return this.pc++;
     // All the zero-page and indexed zero page reads with both X & Y
@@ -66,7 +66,7 @@ class CPU6502 {
     // For branches. The +1 accounts for the increment made by `addr8()'
     case AddrModes.Relative: return addr8(this.pc+1);
     default:
-      throw new Error(`Invalid Address Mode ${instr.addressingMode}`);
+      throw new Error(`Invalid Address Mode ${instr.addressingMode}: ${instr}`);
     }
   }
 
@@ -78,7 +78,7 @@ class CPU6502 {
     const executor = this[`_instr_${instruction.mnemonic}`];
     if (!executor)
       throw new Error(`No executor for ${instruction}`);
-    return executor.bind(this)(parameter);
+    return executor.bind(this)(parameter, instruction);
   }
 
   run() {
@@ -89,10 +89,10 @@ class CPU6502 {
   // -- Stack --
 
   push(value) {
-    this.bus.write(this.s--, value);
+    this.bus.write(0x0100 + this.s--, value);
   }
   pop() {
-    return this.bus.read(++this.s);
+    return this.bus.read(0x0100 + ++this.s);
   }
 
   // -- Flags --
@@ -178,6 +178,49 @@ class CPU6502 {
     this.flagZ(this.a);
     this.flagS(this.a);
     this.flagC(res >= 0);
+  }
+  _instr_LSR(addr, instruction) {
+    this.flagC((addr & 1) === 1);
+    const value = addr >> 1;
+    this.flagZ(value);
+    this.flagS(value);
+    if (instruction.addressingMode === AddrModes.Accumulator)
+      this.a = value;
+    else
+      this.bus.write(addr, value);
+  }
+  _instr_ASL(addr, instruction) {
+    this.flagC((addr & 0x80) === 0x80);
+    const value = (addr << 1) & 0xFF;
+    this.flagZ(value);
+    this.flagS(value);
+    if (instruction.addressingMode === AddrModes.Accumulator)
+      this.a = value;
+    else
+      this.bus.write(addr, value);
+  }
+  _instr_ROL(addr, instruction) {
+    let value = addr << 1;
+    if (this.flag(CARRY_FLAG)) value |= 0x1;
+    this.flagC(value > 0xFF);
+    value &= 0xFF;
+    this.flagZ(value);
+    this.flagS(value);
+    if (instruction.addressingMode === AddrModes.Accumulator)
+      this.a = value;
+    else
+      this.bus.write(addr, value);
+  }
+  _instr_ROR(addr, instruction) {
+    let value = this.flag(CARRY_FLAG) ? addr | 0x100 : addr;
+    this.flagC((value & 0x1) === 0x1);
+    value >>= 1;
+    this.flagZ(value);
+    this.flagS(value);
+    if (instruction.addressingMode === AddrModes.Accumulator)
+      this.a = value;
+    else
+      this.bus.write(addr, value);
   }
 
   _instr_LDA(addr) {
@@ -283,6 +326,12 @@ class CPU6502 {
     const [lo, hi] = [this.pop(), this.pop()];
     const pc = ((hi & 0xFF) << 8) | (lo & 0xFF);
     this.pc = pc + 1;
+  }
+  _instr_RTI(addr) {
+    this._instr_PLP();
+    const [lo, hi] = [this.pop(), this.pop()];
+    const pc = ((hi & 0xFF) << 8) | (lo & 0xFF);
+    this.pc = pc;
   }
 
   _instr_PHA(addr) {
@@ -581,6 +630,7 @@ const AddrModes = {
   IndirectPostX: 11,
   IndirectPostY: 12,
   Relative: 13,
+  Accumulator: 14,
 };
 
 const AddrModeNames = {
@@ -679,7 +729,7 @@ newinstr('DEY', 0x88, AddrModes.Implied,     1, 2);
 newinstr('EOR', 0x49, AddrModes.Immediate,   2, 2);
 newinstr('EOR', 0x45, AddrModes.ZeroPage,    2, 3);
 newinstr('EOR', 0x55, AddrModes.ZeroPageX,   2, 4);
-newinstr('EOR', 0x40, AddrModes.Absolute,    3, 4);
+//newinstr('EOR', 0x40, AddrModes.Absolute,    3, 4);
 //newinstr('EOR', 0x50, AddrModes.AbsoluteX,   3, 4);
 newinstr('EOR', 0x59, AddrModes.AbsoluteY,   3, 4);
 newinstr('EOR', 0x41, AddrModes.IndirectX,   2, 6);
@@ -739,7 +789,7 @@ newinstr('ROR', 0x66, AddrModes.ZeroPage,    2, 5);
 newinstr('ROR', 0x76, AddrModes.ZeroPageX,   2, 6);
 newinstr('ROR', 0x6E, AddrModes.Absolute,    3, 6);
 newinstr('ROR', 0x7E, AddrModes.AbsoluteX,   3, 7);
-newinstr('RTI', 0x4D, AddrModes.Implied,     1, 6);
+newinstr('RTI', 0x40, AddrModes.Implied,     1, 6);
 newinstr('RTS', 0x60, AddrModes.Implied,     1, 6);
 newinstr('SBC', 0xE9, AddrModes.Immediate,   2, 2);
 newinstr('SBC', 0xE5, AddrModes.ZeroPage,    2, 3);
