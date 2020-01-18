@@ -261,7 +261,7 @@ class CPU6502 {
   }
 
   _instr_INC(addr) {
-    const value = this.bus.read(addr) + 1;
+    const value = (this.bus.read(addr) + 1) & 0xFF;
     this.bus.write(addr, value);
     this.flagZ(value);
     this.flagS(value);
