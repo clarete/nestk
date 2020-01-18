@@ -807,7 +807,7 @@ newinstr('SED', 0xF8, AddrModes.Implied,     1, 2);
 newinstr('SEI', 0x78, AddrModes.Implied,     1, 2);
 newinstr('STA', 0x85, AddrModes.ZeroPage,    2, 3);
 newinstr('STA', 0x95, AddrModes.ZeroPageX,   2, 4);
-newinstr('STA', 0x80, AddrModes.Absolute,    3, 4);
+newinstr('STA', 0x8D, AddrModes.Absolute,    3, 4);
 newinstr('STA', 0x9D, AddrModes.AbsoluteX,   3, 5);
 newinstr('STA', 0x99, AddrModes.AbsoluteY,   3, 5);
 newinstr('STA', 0x81, AddrModes.IndirectX,   2, 6);
