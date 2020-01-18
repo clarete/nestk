@@ -438,6 +438,17 @@ class CPU6502 {
   _instr_CPY(addr) {
     this._compare(this.y, addr);
   }
+
+  _instr_LAX(addr) {
+    const value = this.bus.read(addr);
+    this.x = value;
+    this.a = value;
+    this.flagZ(value);
+    this.flagS(value);
+  }
+  _instr_SAX(addr) {
+    this.bus.write(addr, this.a & this.x);
+  }
 }
 
 class Instruction {
@@ -873,6 +884,18 @@ newinstr('TSX', 0xBA, AddrModes.Implied,     1, 2);
 newinstr('TXA', 0x8A, AddrModes.Implied,     1, 2);
 newinstr('TXS', 0x9A, AddrModes.Implied,     1, 2);
 newinstr('TYA', 0x98, AddrModes.Implied,     1, 2);
+
+// Non-official opcodes
+newinstr('LAX', 0xA3, AddrModes.IndirectX,   2, 6);
+newinstr('LAX', 0xA7, AddrModes.ZeroPage,    2, 3);
+newinstr('LAX', 0xAF, AddrModes.Absolute,    3, 4);
+newinstr('LAX', 0xB3, AddrModes.IndirectY,   2, 5);
+newinstr('LAX', 0xB7, AddrModes.ZeroPageY,   2, 4);
+newinstr('LAX', 0xBF, AddrModes.AbsoluteY,   3, 4);
+newinstr('SAX', 0x83, AddrModes.IndirectX,   2, 6);
+newinstr('SAX', 0x87, AddrModes.ZeroPage,    2, 3);
+newinstr('SAX', 0x8F, AddrModes.Absolute,    3, 4);
+newinstr('SAX', 0x97, AddrModes.ZeroPageY,   2, 4);
 
 function asm6502code(code) {
   // Writing machinery
