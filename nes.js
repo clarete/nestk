@@ -66,6 +66,11 @@ class CPU6502 {
     case AddrModes.IndirectX:
       const addr = addr8(this.x) & 0xFF;
       return (this.bus.read(addr) | (this.bus.read((addr + 1) & 0xFF) << 8)) & 0xFFFF;
+    case AddrModes.IndirectY:
+      const addr0 = addr8() & 0xFF;
+      const addr1 = (this.bus.read(addr0) | (this.bus.read((addr0 + 1) & 0xFF) << 8));
+      const addr2 = (addr1 + this.y) & 0xFFFF;
+      return addr2;
     // For branches. The +1 accounts for the increment made by `addr8()'
     case AddrModes.Relative: return addr8(this.pc+1);
     default:

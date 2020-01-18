@@ -42,12 +42,18 @@ const formatParameter = (instruction, data) => {
     return `${formattedData}${suffix}`;
   case nes.AddrModes.Relative:
     return `$${hex(cpu.pc - 2 + instruction.size + parseInt(data[1], 16))}`;
-  case nes.AddrModes.IndirectX:
+  case nes.AddrModes.IndirectX: {
     const addr = (hi + cpu.x) & 0xFF;
     const paddr = hex(peek16(addr), 4);
     const pvalu = hex(cpu.bus.read(peek16(addr)));
     return `($${hex(hi)},X) @ ${hex(addr)} = ${paddr} = ${pvalu}`;
-  default:
+  } case nes.AddrModes.IndirectY: {
+    const addr = hi & 0xFF;
+    const paddr0 = hex(peek16(addr), 4);
+    const paddr1 = hex(peek16(addr+cpu.y), 4);
+    const pvalu = hex(cpu.bus.read(peek16(addr+cpu.y)));
+    return `($${hex(hi)}),Y = ${paddr0} @ ${paddr1} = ${pvalu}`;
+  } default:
     throw new Error(`UNKNOWN ADDR MODE ${instruction.addressingMode}`);
   }
 };
