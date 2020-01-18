@@ -244,9 +244,10 @@ class CPU6502 {
   }
 
   _instr_DEC(addr) {
-    if (--this.a < 0) this.a = 0xFF;
-    this.flagZ(this.a);
-    this.flagS(this.a);
+    const value = (this.bus.read(addr) - 1) & 0xFF;
+    this.bus.write(addr, value);
+    this.flagZ(value);
+    this.flagS(value);
   }
   _instr_DEX(addr) {
     if (--this.x < 0) this.x = 0xFF;
