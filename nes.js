@@ -42,8 +42,22 @@ class CPU6502 {
     const addr16 = (offset=0) => {
       const lo = this.bus.read(this.pc++);
       const hi = this.bus.read(this.pc++);
-      const pos = (hi << 8) | (lo & 0x00ff);
-      return pos + offset;
+      const pos = (hi << 8) | (lo & 0xFF);
+      return (pos + offset) & 0xFFFF;
+    };
+    const addr16ind = (offset=0) => {
+      const oplo = this.bus.read(this.pc++);
+      const ophi = this.bus.read(this.pc++);
+      const operand = ((ophi << 8) | (oplo & 0xFF) + offset) & 0xFFFF;
+      // https://wiki.nesdev.com/w/index.php/Errata
+      const value = ((operand & 0xFF) === 0xFF)
+        // Reset page to 0
+        ? ((this.bus.read(operand - 0xFF) << 8) |
+           (this.bus.read(operand) & 0xFF)) & 0xFFFF
+        // Read page from the next byte
+        : ((this.bus.read(operand + 1) << 8) |
+           (this.bus.read(operand) & 0xFF)) & 0xFFFF;
+      return value;
     };
     switch (instr.addressingMode) {
     // This impplied by the instruction
@@ -62,7 +76,7 @@ class CPU6502 {
     case AddrModes.AbsoluteX: return addr16(this.x);
     case AddrModes.AbsoluteY: return addr16(this.y);
     // Indirect address or pointers
-    case AddrModes.Indirect: return this.bus.read(addr16());
+    case AddrModes.Indirect: return addr16ind();
     case AddrModes.IndirectX:
       const addr = addr8(this.x) & 0xFF;
       return (this.bus.read(addr) | (this.bus.read((addr + 1) & 0xFF) << 8)) & 0xFFFF;
