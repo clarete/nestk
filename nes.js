@@ -55,14 +55,17 @@ class CPU6502 {
     // All the zero-page and indexed zero page reads with both X & Y
     // registers. They're all 8bit numbers
     case AddrModes.ZeroPage: return addr8();
-    case AddrModes.ZeroPageX: return addr8(this.x);
-    case AddrModes.ZeroPageY: return addr8(this.y);
+    case AddrModes.ZeroPageX: return addr8(this.x) & 0xFF;
+    case AddrModes.ZeroPageY: return addr8(this.y) & 0xFF;
     // Absolute addresses with and without indexing
     case AddrModes.Absolute: return addr16();
     case AddrModes.AbsoluteX: return addr16(this.x);
     case AddrModes.AbsoluteY: return addr16(this.y);
     // Indirect address or pointers
     case AddrModes.Indirect: return this.bus.read(addr16());
+    case AddrModes.IndirectX:
+      const addr = addr8(this.x) & 0xFF;
+      return (this.bus.read(addr) | (this.bus.read((addr + 1) & 0xFF) << 8)) & 0xFFFF;
     // For branches. The +1 accounts for the increment made by `addr8()'
     case AddrModes.Relative: return addr8(this.pc+1);
     default:
