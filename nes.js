@@ -37,11 +37,11 @@ class CPU6502 {
 
   parameter(instr) {
     const addr8 = (offset=0) => {
-      return this.bus.read(this.pc++) + offset;
+      return (this.bus.read(this.pc++) & 0xFF) + offset;
     };
     const addr16 = (offset=0) => {
-      const lo = this.bus.read(this.pc++);
-      const hi = this.bus.read(this.pc++);
+      const lo = this.bus.read(this.pc++) & 0xFF;
+      const hi = this.bus.read(this.pc++) & 0xFF;
       const pos = (hi << 8) | (lo & 0xFF);
       return (pos + offset) & 0xFFFF;
     };
@@ -86,7 +86,9 @@ class CPU6502 {
       const addr2 = (addr1 + this.y) & 0xFFFF;
       return addr2;
     // For branches. The +1 accounts for the increment made by `addr8()'
-    case AddrModes.Relative: return addr8(this.pc+1);
+    case AddrModes.Relative:
+      const baseaddr = this.bus.read(this.pc++) & 0xFF;
+      return ((this.pc & 0xFF00) | ((this.pc + baseaddr) & 0xFF));
     default:
       throw new Error(`Invalid Address Mode ${instr.addressingMode}: ${instr}`);
     }
