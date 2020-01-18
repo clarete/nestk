@@ -678,7 +678,7 @@ const newinstr = (mnemonic, opc, am, size, cycles) =>
 newinstr('ADC', 0x69, AddrModes.Immediate,   2, 2);
 newinstr('ADC', 0x65, AddrModes.ZeroPage,    2, 3);
 newinstr('ADC', 0x75, AddrModes.ZeroPageX,   2, 4);
-newinstr('ADC', 0x60, AddrModes.Absolute,    3, 4);
+newinstr('ADC', 0x6D, AddrModes.Absolute,    3, 4);
 newinstr('ADC', 0x70, AddrModes.AbsoluteX,   3, 4);
 newinstr('ADC', 0x79, AddrModes.AbsoluteY,   3, 4);
 newinstr('ADC', 0x61, AddrModes.IndirectX,   2, 6);
@@ -734,7 +734,7 @@ newinstr('DEY', 0x88, AddrModes.Implied,     1, 2);
 newinstr('EOR', 0x49, AddrModes.Immediate,   2, 2);
 newinstr('EOR', 0x45, AddrModes.ZeroPage,    2, 3);
 newinstr('EOR', 0x55, AddrModes.ZeroPageX,   2, 4);
-//newinstr('EOR', 0x40, AddrModes.Absolute,    3, 4);
+newinstr('EOR', 0x4D, AddrModes.Absolute,    3, 4);
 //newinstr('EOR', 0x50, AddrModes.AbsoluteX,   3, 4);
 newinstr('EOR', 0x59, AddrModes.AbsoluteY,   3, 4);
 newinstr('EOR', 0x41, AddrModes.IndirectX,   2, 6);
