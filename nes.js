@@ -182,48 +182,49 @@ class CPU6502 {
     this.flagS(this.a);
     this.flagC(res >= 0);
   }
-  _instr_LSR(addr, instruction) {
-    this.flagC((addr & 1) === 1);
-    const value = addr >> 1;
-    this.flagZ(value);
-    this.flagS(value);
+
+  _getAddrOrAccum(addr, instruction) {
+    return (instruction.addressingMode === AddrModes.Accumulator)
+      ? this.a
+      : this.bus.read(addr);
+  }
+  _setAddrOrAccum(addr, instruction, value) {
     if (instruction.addressingMode === AddrModes.Accumulator)
       this.a = value;
     else
       this.bus.write(addr, value);
+  }
+  _instr_LSR(addr, instruction) {
+    const valueIn = this._getAddrOrAccum(addr, instruction);
+    const value = valueIn >> 1;
+    this.flagC((valueIn & 1) === 1);
+    this.flagZ(value);
+    this.flagS(value);
+    this._setAddrOrAccum(addr, instruction, value);
   }
   _instr_ASL(addr, instruction) {
-    this.flagC((addr & 0x80) === 0x80);
-    const value = (addr << 1) & 0xFF;
+    const valueIn = this._getAddrOrAccum(addr, instruction);
+    const value = (valueIn << 1) & 0xFF;
+    this.flagC((valueIn & 0x80) === 0x80);
     this.flagZ(value);
     this.flagS(value);
-    if (instruction.addressingMode === AddrModes.Accumulator)
-      this.a = value;
-    else
-      this.bus.write(addr, value);
+    this._setAddrOrAccum(addr, instruction, value);
   }
   _instr_ROL(addr, instruction) {
-    let value = addr << 1;
-    if (this.flag(CARRY_FLAG)) value |= 0x1;
-    this.flagC(value > 0xFF);
-    value &= 0xFF;
+    const valueIn = this._getAddrOrAccum(addr, instruction) << 1;
+    const value = (this.flag(CARRY_FLAG) ? valueIn | 0x1 : valueIn) & 0xFF;
+    this.flagC(valueIn > 0xFF);
     this.flagZ(value);
     this.flagS(value);
-    if (instruction.addressingMode === AddrModes.Accumulator)
-      this.a = value;
-    else
-      this.bus.write(addr, value);
+    this._setAddrOrAccum(addr, instruction, value);
   }
   _instr_ROR(addr, instruction) {
-    let value = this.flag(CARRY_FLAG) ? addr | 0x100 : addr;
-    this.flagC((value & 0x1) === 0x1);
-    value >>= 1;
+    const valueIn = this._getAddrOrAccum(addr, instruction);
+    let value = (this.flag(CARRY_FLAG) ? valueIn | 0x100 : valueIn) >> 1;
+    this.flagC((valueIn & 0x1) === 0x1);
     this.flagZ(value);
     this.flagS(value);
-    if (instruction.addressingMode === AddrModes.Accumulator)
-      this.a = value;
-    else
-      this.bus.write(addr, value);
+    this._setAddrOrAccum(addr, instruction, value);
   }
 
   _instr_LDA(addr) {
