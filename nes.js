@@ -449,6 +449,14 @@ class CPU6502 {
   _instr_SAX(addr) {
     this.bus.write(addr, this.a & this.x);
   }
+  _instr_DCP(addr) {
+    const value = (this.bus.read(addr) - 1) & 0xFF;
+    const comparable = this.a - value;
+    this.bus.write(addr, value);
+    this.flagC(comparable >= 0);
+    this.flagZ(comparable);
+    this.flagS(comparable);
+  }
 }
 
 class Instruction {
@@ -886,6 +894,7 @@ newinstr('TXS', 0x9A, AddrModes.Implied,     1, 2);
 newinstr('TYA', 0x98, AddrModes.Implied,     1, 2);
 
 // Non-official opcodes
+// http://wiki.nesdev.com/w/index.php/Programming_with_unofficial_opcodes
 newinstr('LAX', 0xA3, AddrModes.IndirectX,   2, 6);
 newinstr('LAX', 0xA7, AddrModes.ZeroPage,    2, 3);
 newinstr('LAX', 0xAF, AddrModes.Absolute,    3, 4);
@@ -896,6 +905,14 @@ newinstr('SAX', 0x83, AddrModes.IndirectX,   2, 6);
 newinstr('SAX', 0x87, AddrModes.ZeroPage,    2, 3);
 newinstr('SAX', 0x8F, AddrModes.Absolute,    3, 4);
 newinstr('SAX', 0x97, AddrModes.ZeroPageY,   2, 4);
+newinstr('DCP', 0xC3, AddrModes.IndirectX,   2, 8);
+newinstr('DCP', 0xC7, AddrModes.ZeroPage,    2, 5);
+newinstr('DCP', 0xCF, AddrModes.Absolute,    3, 6);
+newinstr('DCP', 0xD3, AddrModes.IndirectY,   2, 8);
+newinstr('DCP', 0xD7, AddrModes.ZeroPageX,   2, 6);
+newinstr('DCP', 0xDB, AddrModes.AbsoluteY,   3, 7);
+newinstr('DCP', 0xDF, AddrModes.AbsoluteX,   3, 7);
+
 
 function asm6502code(code) {
   // Writing machinery
