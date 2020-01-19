@@ -14,14 +14,14 @@ const hex = (data, padSize=2, padChr='0') => data
   .toUpperCase()
   .padStart(padSize, padChr);
 
-const formatParameter = (instruction, data) => {
-  const lo = cpu.bus.read(cpu.pc - instruction.size + 1) & 0xFF;
-  const hi = cpu.bus.read(cpu.pc - instruction.size + 2) & 0xFF;
+const formatParameter = (instruction) => {
+  const lo = cpu.bus.read(cpu.pc + 1) & 0xFF;
+  const hi = cpu.bus.read(cpu.pc + 2) & 0xFF;
   const p16 = (((hi << 8) & 0xFF00) | lo) & 0xFFFF;
   const pageaddr = addr => (
     (cpu.bus.read(addr + 1) << 8) |
       (cpu.bus.read(addr + 0) & 0xFF)) & 0xFFFF;
-  const formattedData = instruction.size === 3 ? hex(p16, 4) : hex(lo);
+  const param = instruction.size === 3 ? hex(p16, 4) : hex(lo);
   switch (instruction.addressingMode) {
   case nes.AddrModes.Implied:
     return '';
@@ -29,36 +29,36 @@ const formatParameter = (instruction, data) => {
     return 'A';
   case nes.AddrModes.Absolute:
     if (['JMP', 'JSR'].includes(instruction.mnemonic))
-      return `$${formattedData}`;
-    return `$${formattedData} = ${hex(cpu.bus.read(p16) & 0xFF)}`;
+      return `$${param}`;
+    return `$${param} = ${hex(cpu.bus.read(pageaddr(lo)) & 0xFF)}`;
   case nes.AddrModes.ZeroPage:
-    return `$${formattedData} = ${hex(cpu.bus.read(p16))}`;
+    return `$${param} = ${hex(cpu.bus.read(lo))}`;
   case nes.AddrModes.ZeroPageX:
-    return `$${formattedData} = ${hex(cpu.bus.read(p16))},X @ ${hex((p16 + cpu.x) & 0xFFFF, 4)} = ${hex(cpu.bus.read((p16 + cpu.x) & 0xFFFF) & 0xFF, 2)}`;
+    return `$${param} = ${hex(cpu.bus.read(p16))},X @ ${hex((p16 + cpu.x) & 0xFFFF, 4)} = ${hex(cpu.bus.read((p16 + cpu.x) & 0xFFFF) & 0xFF, 2)}`;
   case nes.AddrModes.ZeroPageY:
-    return `$${formattedData} = ${hex(cpu.bus.read(p16))},Y @ ${hex((pageaddr(p16 + cpu.y)) & 0xFFFF, 4)} = ${hex(cpu.bus.read((pageaddr(p16 + cpu.y)) & 0xFFFF) & 0xFF, 2)}`;
+    return `$${param} = ${hex(cpu.bus.read(p16))},Y @ ${hex((pageaddr(p16 + cpu.y)) & 0xFFFF, 4)} = ${hex(cpu.bus.read((pageaddr(p16 + cpu.y)) & 0xFFFF) & 0xFF, 2)}`;
   case nes.AddrModes.Immediate:
-    return `#$${formattedData}`;
+    return `#$${param}`;
   case nes.AddrModes.AbsoluteX:
-    return `${formattedData}`;
+    return `$${param},X @ ${hex((p16 + cpu.x) & 0xFFFF, 4)} = ${hex(cpu.bus.read((p16 + cpu.x) & 0xFFFF) & 0xFF, 2)}`;
   case nes.AddrModes.AbsoluteY:
-    return `$${hex(p16, 4)},Y @ ${hex((p16 + cpu.y) & 0xFFFF, 4)} = ${hex(cpu.bus.read((p16 + cpu.y) & 0xFFFF) & 0xFF, 2)}`;
+    return `$${param},Y @ ${hex((p16 + cpu.y) & 0xFFFF, 4)} = ${hex(cpu.bus.read((p16 + cpu.y) & 0xFFFF) & 0xFF, 2)}`;
   case nes.AddrModes.Relative:
-    return `$${hex(cpu.pc - 2 + instruction.size + parseInt(data[1], 16))}`;
+    return `$${hex(cpu.pc + lo + 2)}`;
   case nes.AddrModes.Indirect: {
-    return `($${hex(p16, 4)}) = ${hex(pageaddr(p16), 4)}`;
+    return `($${param}) = ${hex(pageaddr(p16), 4)}`;
   } case nes.AddrModes.IndirectX: {
     const addr = (lo + cpu.x) & 0xFF;
     const paddr = hex(pageaddr(addr), 4);
     const pvalu = hex(cpu.bus.read(pageaddr(addr)));
-    return `($${hex(lo)},X) @ ${hex(addr)} = ${paddr} = ${pvalu}`;
+    return `($${param},X) @ ${hex(addr)} = ${paddr} = ${pvalu}`;
   } case nes.AddrModes.IndirectY: {
     const addr0 = lo & 0xFF;
     const addr1 = (cpu.bus.read(addr0) | (cpu.bus.read((addr0 + 1) & 0xFF) << 8));
     const addr2 = (addr1 + cpu.y) & 0xFFFF;
     const paddr = hex(addr2, 4);
     const pvalu = hex(cpu.bus.read(addr2));
-    return `($${hex(lo)}),Y = ${hex(addr1, 4)} @ ${paddr} = ${pvalu}`;
+    return `($${param}),Y = ${hex(addr1, 4)} @ ${paddr} = ${pvalu}`;
   } default:
     throw new Error(`UNKNOWN ADDR MODE ${instruction.addressingMode}`);
   }
@@ -74,8 +74,8 @@ const logLines = fs
 
 function diff(a, b) {
   // Ignore cycles & scanlines for now
-  const [aa] = a.split('SL');
-  const [bb] = b.split('SL');
+  const [aa] = a.split('CYC');
+  const [bb] = b.split('CYC');
 
   if (aa !== bb) {
     console.log(red(a));
@@ -92,17 +92,11 @@ while (remaining-- > 0) {
   const instruction = nes.getinopc(opcode);
   if (!instruction)
     throw new Error(`UNKNOWN OPCODE: ${hex(opcode)}.`);
-  // Read the raw data of the instruction as well
   const data = [];
   for (let i = 0; i < instruction.size; i++)
-    data.push(hex(cpu.bus.read(cpu.pc++)));
-
-  const bigEndianData = data
-    .map(x => hex(x.toString(16)))
-    .join(' ')
-    .padEnd(8);
-
-  const address = formatParameter(instruction, data).padEnd(27);
+    data.push(hex(cpu.bus.read(cpu.pc+i)));
+  const bigEndianData = data.join(' ').padEnd(8);
+  const address = formatParameter(instruction).padEnd(27);
   const logmsg = [
     hex(opcaddr, 4), '',
     bigEndianData, '',
@@ -122,9 +116,6 @@ while (remaining-- > 0) {
   if (line === undefined) break;
   diff(logmsg, line);
 
-  // Revert the Program Counter to the saved location right before the
-  // instructionwe just logged above
-  cpu.pc = pc;
   // Run the one instruction on the CPU
   cpu.step();
 }
