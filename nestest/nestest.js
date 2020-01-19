@@ -32,11 +32,11 @@ const formatParameter = (instruction, data) => {
       return `$${formattedData}`;
     return `$${formattedData} = ${hex(cpu.bus.read(p16) & 0xFF)}`;
   case nes.AddrModes.ZeroPage:
-    return `$${formattedData} = ${hex(cpu.bus.read(hi))}`;
+    return `$${formattedData} = ${hex(cpu.bus.read(p16))}`;
   case nes.AddrModes.ZeroPageX:
-    return `$${formattedData} = ${hex(cpu.bus.read(hi))},X @ ${hex((hi + cpu.x) & 0xFFFF, 4)} = ${hex(cpu.bus.read((hi + cpu.x) & 0xFFFF) & 0xFF, 2)}`;
+    return `$${formattedData} = ${hex(cpu.bus.read(p16))},X @ ${hex((p16 + cpu.x) & 0xFFFF, 4)} = ${hex(cpu.bus.read((p16 + cpu.x) & 0xFFFF) & 0xFF, 2)}`;
   case nes.AddrModes.ZeroPageY:
-    return `$${formattedData} = ${hex(cpu.bus.read(hi))},Y @ ${hex((hi + cpu.y) & 0xFFFF, 4)} = ${hex(cpu.bus.read((hi + cpu.y) & 0xFFFF) & 0xFF, 2)}`;
+    return `$${formattedData} = ${hex(cpu.bus.read(p16))},Y @ ${hex((pageaddr(p16 + cpu.y)) & 0xFFFF, 4)} = ${hex(cpu.bus.read((pageaddr(p16 + cpu.y)) & 0xFFFF) & 0xFF, 2)}`;
   case nes.AddrModes.Immediate:
     return `#$${formattedData}`;
   case nes.AddrModes.AbsoluteX:
@@ -53,9 +53,12 @@ const formatParameter = (instruction, data) => {
     const pvalu = hex(cpu.bus.read(pageaddr(addr)));
     return `($${hex(lo)},X) @ ${hex(addr)} = ${paddr} = ${pvalu}`;
   } case nes.AddrModes.IndirectY: {
-    const paddr = hex(pageaddr(lo+cpu.y), 4);
-    const pvalu = hex(cpu.bus.read(pageaddr(lo+cpu.y)));
-    return `($${hex(lo)}),Y = ${hex(pageaddr(lo), 4)} @ ${paddr} = ${pvalu}`;
+    const addr0 = lo & 0xFF;
+    const addr1 = (cpu.bus.read(addr0) | (cpu.bus.read((addr0 + 1) & 0xFF) << 8));
+    const addr2 = (addr1 + cpu.y) & 0xFFFF;
+    const paddr = hex(addr2, 4);
+    const pvalu = hex(cpu.bus.read(addr2));
+    return `($${hex(lo)}),Y = ${hex(addr1, 4)} @ ${paddr} = ${pvalu}`;
   } default:
     throw new Error(`UNKNOWN ADDR MODE ${instruction.addressingMode}`);
   }
