@@ -882,6 +882,7 @@ newinstr('ROR', 0x6E, AddrModes.Absolute,    3, 6);
 newinstr('ROR', 0x7E, AddrModes.AbsoluteX,   3, 7);
 newinstr('RTI', 0x40, AddrModes.Implied,     1, 6);
 newinstr('RTS', 0x60, AddrModes.Implied,     1, 6);
+newinstr('SBC', 0xEB, AddrModes.Immediate,   2, 2);
 newinstr('SBC', 0xE9, AddrModes.Immediate,   2, 2);
 newinstr('SBC', 0xE5, AddrModes.ZeroPage,    2, 3);
 newinstr('SBC', 0xF5, AddrModes.ZeroPageX,   2, 4);
