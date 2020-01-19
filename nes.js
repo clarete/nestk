@@ -57,52 +57,63 @@ class CPU6502 {
         // Read page from the next byte
         : ((this.bus.read(operand + 1) << 8) |
            (this.bus.read(operand) & 0xFF)) & 0xFFFF;
+      if (this._crosspage(this.pc, value))
+        this.cycles += 2;
       return value;
     };
     switch (instr.addressingMode) {
-    // This impplied by the instruction
     case AddrModes.Implied: return undefined;
-    // Bip-bop
     case AddrModes.Accumulator: return this.a;
-    // Should return what's right under the Program Counter
     case AddrModes.Immediate: return this.pc++;
-    // All the zero-page and indexed zero page reads with both X & Y
-    // registers. They're all 8bit numbers
     case AddrModes.ZeroPage: return addr8();
     case AddrModes.ZeroPageX: return addr8(this.x) & 0xFF;
     case AddrModes.ZeroPageY: return addr8(this.y) & 0xFF;
-    // Absolute addresses with and without indexing
     case AddrModes.Absolute: return addr16();
     case AddrModes.AbsoluteX: return addr16(this.x);
     case AddrModes.AbsoluteY: return addr16(this.y);
-    // Indirect address or pointers
     case AddrModes.Indirect: return addr16ind();
-    case AddrModes.IndirectX:
+    case AddrModes.IndirectX: {
       const addr = addr8(this.x) & 0xFF;
       return (this.bus.read(addr) | (this.bus.read((addr + 1) & 0xFF) << 8)) & 0xFFFF;
-    case AddrModes.IndirectY:
+    } case AddrModes.IndirectY: {
       const addr0 = addr8() & 0xFF;
       const addr1 = (this.bus.read(addr0) | (this.bus.read((addr0 + 1) & 0xFF) << 8));
       const addr2 = (addr1 + this.y) & 0xFFFF;
       return addr2;
-    // For branches. The +1 accounts for the increment made by `addr8()'
-    case AddrModes.Relative:
+    } case AddrModes.Relative: {
       const offset = addr8();
       return ((this.pc & 0xFF00) | (this.pc & 0xFF) + offset);
-    default:
+    } default:
       throw new Error(`Invalid Address Mode ${instr.addressingMode}: ${instr}`);
     }
   }
 
   step() {
+    const cycles = this.cycles;
     const opcode = this.bus.read(this.pc++);
     const instruction = getinopc(opcode);
-    if (!instruction) throw new Error(`Invalid opcode ${opcode}`);
+    if (!instruction)
+      throw new Error(`Invalid opcode ${opcode}`);
     const parameter = this.parameter(instruction);
     const executor = this[`_instr_${instruction.mnemonic}`];
     if (!executor)
       throw new Error(`No executor for ${instruction}`);
-    return executor.bind(this)(parameter, instruction);
+
+    executor.bind(this)(parameter, instruction);
+
+    this.cycles += instruction.cycles;
+    if (true || instruction.checkPageCross) {
+      switch (instruction.addressingMode) {
+      case AddrModes.AbsoluteX:
+        this.cycles += this._crosspage(this.pc, this.pc - this.x) ? 1 : 0;
+        break;
+      case AddrModes.AbsoluteY:
+      case AddrModes.IndirectY:
+        this.cycles += this._crosspage(this.pc, this.pc - this.y) ? 1 : 0;
+        break;
+      }
+    }
+    return cycles - this.cycles;
   }
 
   run() {
@@ -383,38 +394,46 @@ class CPU6502 {
     this.pc = num;
   }
 
+  _crosspage(a, b) {
+    return ((a & 0xFF00) !== (b & 0xFF00));
+  }
+  _branch(addr) {
+    this.cycles += this._crosspage(this.pc, addr) ? 2 : 1;
+    this.pc = addr;
+  }
   _instr_BCS(addr) {
     if (this.flag(CARRY_FLAG))
-      this.pc = addr;
+      this._branch(addr);
   }
   _instr_BCC(addr) {
     if (!this.flag(CARRY_FLAG))
-      this.pc = addr;
+      this._branch(addr);
   }
   _instr_BEQ(addr) {
     if (this.flag(ZERO_FLAG))
-      this.pc = addr;
+      this._branch(addr);
   }
   _instr_BNE(addr) {
     if (!this.flag(ZERO_FLAG))
-      this.pc = addr;
+      this._branch(addr);
   }
   _instr_BVS(addr) {
     if (this.flag(OVERFLOW_FLAG))
-      this.pc = addr;
+      this._branch(addr);
   }
   _instr_BVC(addr) {
     if (!this.flag(OVERFLOW_FLAG))
-      this.pc = addr;
+      this._branch(addr);
   }
   _instr_BMI(addr) {
     if (this.flag(SIGN_FLAG))
-      this.pc = addr;
+      this._branch(addr);
   }
   _instr_BPL(addr) {
     if (!this.flag(SIGN_FLAG))
-      this.pc = addr;
+      this._branch(addr);
   }
+
   _instr_BIT(addr) {
     const value = this.bus.read(addr);
     this.flagS(value);
@@ -480,12 +499,13 @@ class CPU6502 {
 }
 
 class Instruction {
-  constructor(mnemonic, opcode, am, size, cycles) {
+  constructor(mnemonic, opcode, am, size, cycles, checkPageCross) {
     this.mnemonic = mnemonic;
     this.opcode = opcode;
     this.addressingMode = am;
     this.size = size;
     this.cycles = cycles;
+    this.checkPageCross = checkPageCross;
   }
   toString() {
     return `${this.mnemonic}(${this.opcode.toString(16)})`;
@@ -733,27 +753,27 @@ const MNEMONICS = [
 
 const getinopc = (opc) => INSTRUCTIONS_BY_OPC[opc];
 const getinstr = (mnemonic, am) => INSTRUCTIONS_BY_MAM[[mnemonic, am]];
-const newinstr = (mnemonic, opc, am, size, cycles) =>
+const newinstr = (mnemonic, opc, am, size, cycles, checkPageCross=false) =>
   INSTRUCTIONS_BY_OPC[opc] =
   INSTRUCTIONS_BY_MAM[[mnemonic, am]] =
-  new Instruction(mnemonic, opc, am, size, cycles);
+  new Instruction(mnemonic, opc, am, size, cycles, checkPageCross);
 
 newinstr('ADC', 0x69, AddrModes.Immediate,   2, 2);
 newinstr('ADC', 0x65, AddrModes.ZeroPage,    2, 3);
 newinstr('ADC', 0x75, AddrModes.ZeroPageX,   2, 4);
 newinstr('ADC', 0x6D, AddrModes.Absolute,    3, 4);
-newinstr('ADC', 0x7D, AddrModes.AbsoluteX,   3, 4);
-newinstr('ADC', 0x79, AddrModes.AbsoluteY,   3, 4);
+newinstr('ADC', 0x7D, AddrModes.AbsoluteX,   3, 4, true);
+newinstr('ADC', 0x79, AddrModes.AbsoluteY,   3, 4, true);
 newinstr('ADC', 0x61, AddrModes.IndirectX,   2, 6);
-newinstr('ADC', 0x71, AddrModes.IndirectY,   2, 5);
+newinstr('ADC', 0x71, AddrModes.IndirectY,   2, 5, true);
 newinstr('AND', 0x29, AddrModes.Immediate,   2, 2);
 newinstr('AND', 0x25, AddrModes.ZeroPage,    2, 3);
 newinstr('AND', 0x35, AddrModes.ZeroPageX,   2, 4);
 newinstr('AND', 0x2D, AddrModes.Absolute,    3, 4);
-newinstr('AND', 0x3D, AddrModes.AbsoluteX,   3, 4);
-newinstr('AND', 0x39, AddrModes.AbsoluteY,   3, 4);
+newinstr('AND', 0x3D, AddrModes.AbsoluteX,   3, 4, true);
+newinstr('AND', 0x39, AddrModes.AbsoluteY,   3, 4, true);
 newinstr('AND', 0x21, AddrModes.IndirectX,   2, 6);
-newinstr('AND', 0x31, AddrModes.IndirectY,   2, 5);
+newinstr('AND', 0x31, AddrModes.IndirectY,   2, 5, true);
 newinstr('ASL', 0x0A, AddrModes.Accumulator, 1, 2);
 newinstr('ASL', 0x06, AddrModes.ZeroPage,    2, 5);
 newinstr('ASL', 0x16, AddrModes.ZeroPageX,   2, 6);
@@ -778,10 +798,10 @@ newinstr('CMP', 0xC9, AddrModes.Immediate,   2, 2);
 newinstr('CMP', 0xC5, AddrModes.ZeroPage,    2, 3);
 newinstr('CMP', 0xD5, AddrModes.ZeroPageX,   2, 4);
 newinstr('CMP', 0xCD, AddrModes.Absolute,    3, 4);
-newinstr('CMP', 0xDD, AddrModes.AbsoluteX,   3, 4);
-newinstr('CMP', 0xD9, AddrModes.AbsoluteY,   3, 4);
+newinstr('CMP', 0xDD, AddrModes.AbsoluteX,   3, 4, true);
+newinstr('CMP', 0xD9, AddrModes.AbsoluteY,   3, 4, true);
 newinstr('CMP', 0xC1, AddrModes.IndirectX,   2, 6);
-newinstr('CMP', 0xD1, AddrModes.IndirectY,   2, 5);
+newinstr('CMP', 0xD1, AddrModes.IndirectY,   2, 5, true);
 newinstr('CPX', 0xE0, AddrModes.Immediate,   2, 2);
 newinstr('CPX', 0xE4, AddrModes.ZeroPage,    2, 3);
 newinstr('CPX', 0xEC, AddrModes.Absolute,    3, 4);
@@ -798,10 +818,10 @@ newinstr('EOR', 0x49, AddrModes.Immediate,   2, 2);
 newinstr('EOR', 0x45, AddrModes.ZeroPage,    2, 3);
 newinstr('EOR', 0x55, AddrModes.ZeroPageX,   2, 4);
 newinstr('EOR', 0x4D, AddrModes.Absolute,    3, 4);
-newinstr('EOR', 0x5D, AddrModes.AbsoluteX,   3, 4);
-newinstr('EOR', 0x59, AddrModes.AbsoluteY,   3, 4);
+newinstr('EOR', 0x5D, AddrModes.AbsoluteX,   3, 4, true);
+newinstr('EOR', 0x59, AddrModes.AbsoluteY,   3, 4, true);
 newinstr('EOR', 0x41, AddrModes.IndirectX,   2, 6);
-newinstr('EOR', 0x51, AddrModes.IndirectY,   2, 5);
+newinstr('EOR', 0x51, AddrModes.IndirectY,   2, 5, true);
 newinstr('INC', 0xE6, AddrModes.ZeroPage,    2, 5);
 newinstr('INC', 0xF6, AddrModes.ZeroPageX,   2, 6);
 newinstr('INC', 0xEE, AddrModes.Absolute,    3, 6);
@@ -815,20 +835,20 @@ newinstr('LDA', 0xA9, AddrModes.Immediate,   2, 2);
 newinstr('LDA', 0xA5, AddrModes.ZeroPage,    2, 3);
 newinstr('LDA', 0xB5, AddrModes.ZeroPageX,   2, 4);
 newinstr('LDA', 0xAD, AddrModes.Absolute,    3, 4);
-newinstr('LDA', 0xBD, AddrModes.AbsoluteX,   3, 4);
-newinstr('LDA', 0xB9, AddrModes.AbsoluteY,   3, 4);
+newinstr('LDA', 0xBD, AddrModes.AbsoluteX,   3, 4, true);
+newinstr('LDA', 0xB9, AddrModes.AbsoluteY,   3, 4, true);
 newinstr('LDA', 0xA1, AddrModes.IndirectX,   2, 6);
-newinstr('LDA', 0xB1, AddrModes.IndirectY,   2, 5);
+newinstr('LDA', 0xB1, AddrModes.IndirectY,   2, 5, true);
 newinstr('LDX', 0xA2, AddrModes.Immediate,   2, 2);
 newinstr('LDX', 0xA6, AddrModes.ZeroPage,    2, 3);
 newinstr('LDX', 0xB6, AddrModes.ZeroPageY,   2, 4);
 newinstr('LDX', 0xAE, AddrModes.Absolute,    3, 4);
-newinstr('LDX', 0xBE, AddrModes.AbsoluteY,   3, 4);
+newinstr('LDX', 0xBE, AddrModes.AbsoluteY,   3, 4, true);
 newinstr('LDY', 0xA0, AddrModes.Immediate,   2, 2);
 newinstr('LDY', 0xA4, AddrModes.ZeroPage,    2, 3);
 newinstr('LDY', 0xB4, AddrModes.ZeroPageX,   2, 4);
 newinstr('LDY', 0xAC, AddrModes.Absolute,    3, 4);
-newinstr('LDY', 0xBC, AddrModes.AbsoluteX,   3, 4);
+newinstr('LDY', 0xBC, AddrModes.AbsoluteX,   3, 4, true);
 newinstr('LSR', 0x4A, AddrModes.Accumulator, 1, 2);
 newinstr('LSR', 0x46, AddrModes.ZeroPage,    2, 5);
 newinstr('LSR', 0x56, AddrModes.ZeroPageX,   2, 6);
@@ -865,10 +885,10 @@ newinstr('ORA', 0x09, AddrModes.Immediate,   2, 2);
 newinstr('ORA', 0x05, AddrModes.ZeroPage,    2, 3);
 newinstr('ORA', 0x15, AddrModes.ZeroPageX,   2, 4);
 newinstr('ORA', 0x0D, AddrModes.Absolute,    3, 4);
-newinstr('ORA', 0x1D, AddrModes.AbsoluteX,   3, 4);
-newinstr('ORA', 0x19, AddrModes.AbsoluteY,   3, 4);
+newinstr('ORA', 0x1D, AddrModes.AbsoluteX,   3, 4, true);
+newinstr('ORA', 0x19, AddrModes.AbsoluteY,   3, 4, true);
 newinstr('ORA', 0x01, AddrModes.IndirectX,   2, 6);
-newinstr('ORA', 0x11, AddrModes.IndirectY,   2, 5);
+newinstr('ORA', 0x11, AddrModes.IndirectY,   2, 5, true);
 newinstr('PHA', 0x48, AddrModes.Implied,     1, 3);
 newinstr('PHP', 0x08, AddrModes.Implied,     1, 3);
 newinstr('PLA', 0x68, AddrModes.Implied,     1, 4);
@@ -890,10 +910,10 @@ newinstr('SBC', 0xE9, AddrModes.Immediate,   2, 2);
 newinstr('SBC', 0xE5, AddrModes.ZeroPage,    2, 3);
 newinstr('SBC', 0xF5, AddrModes.ZeroPageX,   2, 4);
 newinstr('SBC', 0xED, AddrModes.Absolute,    3, 4);
-newinstr('SBC', 0xFD, AddrModes.AbsoluteX,   3, 4);
-newinstr('SBC', 0xF9, AddrModes.AbsoluteY,   3, 4);
+newinstr('SBC', 0xFD, AddrModes.AbsoluteX,   3, 4, true);
+newinstr('SBC', 0xF9, AddrModes.AbsoluteY,   3, 4, true);
 newinstr('SBC', 0xE1, AddrModes.IndirectX,   2, 6);
-newinstr('SBC', 0xF1, AddrModes.IndirectY,   2, 5);
+newinstr('SBC', 0xF1, AddrModes.IndirectY,   2, 5, true);
 newinstr('SEC', 0x38, AddrModes.Implied,     1, 2);
 newinstr('SED', 0xF8, AddrModes.Implied,     1, 2);
 newinstr('SEI', 0x78, AddrModes.Implied,     1, 2);
