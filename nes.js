@@ -457,6 +457,26 @@ class CPU6502 {
     this.flagZ(comparable);
     this.flagS(comparable);
   }
+  _instr_ISC(addr) {
+    this._instr_INC(addr);
+    this._instr_SBC(addr);
+  }
+  _instr_SLO(addr, instruction) {
+    this._instr_ASL(addr, instruction);
+    this._instr_ORA(addr);
+  }
+  _instr_RLA(addr, instruction) {
+    this._instr_ROL(addr, instruction);
+    this._instr_AND(addr);
+  }
+  _instr_SRE(addr, instruction) {
+    this._instr_LSR(addr, instruction);
+    this._instr_EOR(addr);
+  }
+  _instr_RRA(addr, instruction) {
+    this._instr_ROR(addr, instruction);
+    this._instr_ADC(addr);
+  }
 }
 
 class Instruction {
@@ -900,11 +920,13 @@ newinstr('LAX', 0xA7, AddrModes.ZeroPage,    2, 3);
 newinstr('LAX', 0xAF, AddrModes.Absolute,    3, 4);
 newinstr('LAX', 0xB3, AddrModes.IndirectY,   2, 5);
 newinstr('LAX', 0xB7, AddrModes.ZeroPageY,   2, 4);
+
 newinstr('LAX', 0xBF, AddrModes.AbsoluteY,   3, 4);
 newinstr('SAX', 0x83, AddrModes.IndirectX,   2, 6);
 newinstr('SAX', 0x87, AddrModes.ZeroPage,    2, 3);
 newinstr('SAX', 0x8F, AddrModes.Absolute,    3, 4);
 newinstr('SAX', 0x97, AddrModes.ZeroPageY,   2, 4);
+
 newinstr('DCP', 0xC3, AddrModes.IndirectX,   2, 8);
 newinstr('DCP', 0xC7, AddrModes.ZeroPage,    2, 5);
 newinstr('DCP', 0xCF, AddrModes.Absolute,    3, 6);
@@ -913,6 +935,45 @@ newinstr('DCP', 0xD7, AddrModes.ZeroPageX,   2, 6);
 newinstr('DCP', 0xDB, AddrModes.AbsoluteY,   3, 7);
 newinstr('DCP', 0xDF, AddrModes.AbsoluteX,   3, 7);
 
+newinstr('ISC', 0xE3, AddrModes.IndirectX,   2, 8);
+newinstr('ISC', 0xE7, AddrModes.ZeroPage,    2, 5);
+newinstr('ISC', 0xEF, AddrModes.Absolute,    3, 6);
+newinstr('ISC', 0xF3, AddrModes.IndirectY,   2, 8);
+newinstr('ISC', 0xF7, AddrModes.ZeroPageX,   2, 6);
+newinstr('ISC', 0xFB, AddrModes.AbsoluteY,   3, 7);
+newinstr('ISC', 0xFF, AddrModes.AbsoluteX,   3, 7);
+
+newinstr('SLO', 0x03, AddrModes.IndirectX,   2, 8);
+newinstr('SLO', 0x07, AddrModes.ZeroPage,    2, 5);
+newinstr('SLO', 0x0F, AddrModes.Absolute,    3, 6);
+newinstr('SLO', 0x13, AddrModes.IndirectY,   2, 8);
+newinstr('SLO', 0x17, AddrModes.ZeroPageX,   2, 6);
+newinstr('SLO', 0x1B, AddrModes.AbsoluteY,   3, 7);
+newinstr('SLO', 0x1F, AddrModes.AbsoluteX,   3, 7);
+
+newinstr('RLA', 0x23, AddrModes.IndirectX,   2, 8);
+newinstr('RLA', 0x27, AddrModes.ZeroPage,    2, 5);
+newinstr('RLA', 0x2F, AddrModes.Absolute,    3, 6);
+newinstr('RLA', 0x33, AddrModes.IndirectY,   2, 8);
+newinstr('RLA', 0x37, AddrModes.ZeroPageX,   2, 6);
+newinstr('RLA', 0x3B, AddrModes.AbsoluteY,   3, 7);
+newinstr('RLA', 0x3F, AddrModes.AbsoluteX,   3, 7);
+
+newinstr('SRE', 0x43, AddrModes.IndirectX,   2, 8);
+newinstr('SRE', 0x47, AddrModes.ZeroPage,    2, 5);
+newinstr('SRE', 0x4F, AddrModes.Absolute,    3, 6);
+newinstr('SRE', 0x53, AddrModes.IndirectY,   2, 8);
+newinstr('SRE', 0x57, AddrModes.ZeroPageX,   2, 6);
+newinstr('SRE', 0x5B, AddrModes.AbsoluteY,   3, 7);
+newinstr('SRE', 0x5F, AddrModes.AbsoluteX,   3, 7);
+
+newinstr('RRA', 0x63, AddrModes.IndirectX,   2, 8);
+newinstr('RRA', 0x67, AddrModes.ZeroPage,    2, 5);
+newinstr('RRA', 0x6F, AddrModes.Absolute,    3, 6);
+newinstr('RRA', 0x73, AddrModes.IndirectY,   2, 8);
+newinstr('RRA', 0x77, AddrModes.ZeroPageX,   2, 6);
+newinstr('RRA', 0x7B, AddrModes.AbsoluteY,   3, 7);
+newinstr('RRA', 0x7F, AddrModes.AbsoluteX,   3, 7);
 
 function asm6502code(code) {
   // Writing machinery
