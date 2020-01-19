@@ -487,6 +487,9 @@ class Instruction {
     this.size = size;
     this.cycles = cycles;
   }
+  toString() {
+    return `${this.mnemonic}(${this.opcode.toString(16)})`;
+  }
 }
 
 function inesparser(buffer) {
