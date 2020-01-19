@@ -548,161 +548,6 @@ function inesparser(buffer) {
   return { prg, chr };
 }
 
-class ParsingError extends Error {}
-
-function parse6502asm(source) {
-  // Lexer facilities
-  let cursor = 0;
-  const errr = m => { throw new ParsingError(m); };
-  const curr = () => source[cursor];
-  const next = () => cursor++ === source.length ? errr('End of Input') : true;
-  const test = c => curr() === c;
-  const expect = c => test(c) ? next() && c : errr(`Expected '${c}' got '${curr()}'`);
-  const expectStr = s => Array.from(s, expect) && s;
-  // Parsing expressions
-  const or = (opts) => {
-    const saved = cursor;
-    for (const f of opts) {
-      try { return f(); }
-      catch (e) { cursor = saved; }
-    }
-    errr('No option found');
-  };
-  const star = f => {
-    const output = [];
-    while (true) {
-      try { output.push(f()); }
-      catch (e) { break; }
-    };
-    return output;
-  };
-  const ntimes = (n, f) => {
-    const output = [];
-    for (let i = 0; i < n; i++)
-      output.push(f());
-    return output;
-  };
-  const plus = f => [f()].concat(star(f));
-  const optional = f => or([f, () => null]);
-  // Parsing functions
-  const thunkspect = c => () => expect(c);
-  const comment = () => {
-    expect(';');
-    while (cursor < source.length) {
-      const c = curr(); next();
-      if (c === '\n') break;
-    }
-  };
-  const ws = () => {
-    const opts = Array.from(' \t', thunkspect).concat(comment);
-    return star(() => or(opts)).join('');
-  };
-  const nl = () => star(() => or([thunkspect('\n'), comment])).join('');
-  const hex = n => parseInt(n, 16);
-  const parseHexDigit = () =>
-    or(Array.from("0123456789abcdef", thunkspect));
-  const parseOneByteHex = () =>
-    expect('$') && hex(ntimes(2, parseHexDigit).join(''));
-  const parseTwoByteHex = () =>
-    expect('$') && hex(ntimes(4, parseHexDigit).join(''));
-  const parseImmediate = () =>
-    expect('#') && or([parseTwoByteHex, parseOneByteHex, parseIdentifier]);
-  const parseIndexed = (fn, c) => {
-    const value = fn();
-    const strs = [`,${c.toUpperCase()}`, `,${c}`];
-    or(strs.map(s => () => expectStr(s)));
-    return value;
-  };
-  const parseJMPIndirect = () => {
-    expect('('); ws();
-    const value = or([parseTwoByteHex, parseIdentifier]);
-    expect(')'); ws();
-    return value;
-  };
-  const parseIndirect = (c) => {
-    expect('('); ws();
-    const value = or([parseOneByteHex, parseIdentifier]);
-    if (c) {
-      const strs = [`,${c.toUpperCase()}`, `,${c}`];
-      or(strs.map(s => () => expectStr(s)));
-    }
-    ws(); expect(')');
-    return value;
-  };
-  const parseIndirectPost = (c) => {
-    expect('('); ws();
-    const value = or([parseOneByteHex, parseIdentifier]);
-    const strs = [`),${c.toUpperCase()}`, `,)${c}`];
-    or(strs.map(s => () => expectStr(s))); ws();
-    return value;
-  };
-  const parseAddress = () => {
-    // We don't have to care about the following modes here:
-    // 0. Implied: 0
-    // 1. Accumulator: 0
-    return or([
-      // 2. Immediate mode: reads 8b data
-      () => [AddrModes.Immediate, parseImmediate()],
-      // 3, 4. Indexed and Zero-page Indexed
-      () => [AddrModes.AbsoluteX, parseIndexed(parseTwoByteHex, 'x')],
-      () => [AddrModes.AbsoluteY, parseIndexed(parseTwoByteHex, 'y')],
-      () => [AddrModes.ZeroPageX, parseIndexed(parseOneByteHex, 'x')],
-      () => [AddrModes.ZeroPageY, parseIndexed(parseOneByteHex, 'y')],
-      // 5, 6: Absolute & Zero-page Absolute: read 16b & 8b data
-      // respectively
-      () => [AddrModes.Absolute, parseTwoByteHex()],
-      () => [AddrModes.ZeroPage, parseOneByteHex()],
-      // 7. Post-indexed indirect
-      () => [AddrModes.IndirectPostX, parseIndirectPost('x')],
-      () => [AddrModes.IndirectPostY, parseIndirectPost('y')],
-      // 8. Pre-indexed indirect
-      () => [AddrModes.IndirectX, parseIndirect('x')],
-      () => [AddrModes.IndirectY, parseIndirect('y')],
-      // 9. Indirect
-      () => [AddrModes.Indirect, parseJMPIndirect()],
-      // 10. Relative
-      () => [AddrModes.Relative, parseIdentifier()]]);
-  };
-  const parseInstruction = () => {
-    const mnemonics = MNEMONICS
-      .map(m => [m, m.toLowerCase()]).flat()
-      .map(x => () => expectStr(x));
-    const out = ['instruction', or(mnemonics)]; ws();
-    const addr = optional(parseAddress) || [AddrModes.Implied];
-    for (const a of addr) out.push(a);
-    return out;
-  };
-  const parseIdentifier = () => {
-    const isdigit = () => {
-      const c = curr();
-      return Number.isInteger(c)
-        ? next() && c
-        : errr(`Expected digit, got ${c}`);
-    };
-    const ischar = () => {
-      const c = curr();
-      return /[\w_]/.test(c)
-        ? next() && c
-        : errr(`Expected char, got ${c}`);
-    };
-    return [ischar()]
-      .concat(star(() => or([ischar, isdigit])))
-      .join('');
-  };
-  const parseLabel = () => {
-    const label = parseIdentifier();
-    ws(); expect(':');
-    return ['label', label];
-  };
-  const parseLine = () => {
-    ws();
-    const instruction = or([parseLabel, parseInstruction]);
-    ws(); nl();
-    return instruction;
-  };
-  return star(parseLine);
-}
-
 const AddrModes = {
   Implied: 0,
   Immediate: 1,
@@ -1058,6 +903,161 @@ class Cartridge {
   static fromRomData(romData) {
     return new Cartridge(inesparser(romData));
   }
+}
+
+class ParsingError extends Error {}
+
+function parse6502asm(source) {
+  // Lexer facilities
+  let cursor = 0;
+  const errr = m => { throw new ParsingError(m); };
+  const curr = () => source[cursor];
+  const next = () => cursor++ === source.length ? errr('End of Input') : true;
+  const test = c => curr() === c;
+  const expect = c => test(c) ? next() && c : errr(`Expected '${c}' got '${curr()}'`);
+  const expectStr = s => Array.from(s, expect) && s;
+  // Parsing expressions
+  const or = (opts) => {
+    const saved = cursor;
+    for (const f of opts) {
+      try { return f(); }
+      catch (e) { cursor = saved; }
+    }
+    errr('No option found');
+  };
+  const star = f => {
+    const output = [];
+    while (true) {
+      try { output.push(f()); }
+      catch (e) { break; }
+    };
+    return output;
+  };
+  const ntimes = (n, f) => {
+    const output = [];
+    for (let i = 0; i < n; i++)
+      output.push(f());
+    return output;
+  };
+  const plus = f => [f()].concat(star(f));
+  const optional = f => or([f, () => null]);
+  // Parsing functions
+  const thunkspect = c => () => expect(c);
+  const comment = () => {
+    expect(';');
+    while (cursor < source.length) {
+      const c = curr(); next();
+      if (c === '\n') break;
+    }
+  };
+  const ws = () => {
+    const opts = Array.from(' \t', thunkspect).concat(comment);
+    return star(() => or(opts)).join('');
+  };
+  const nl = () => star(() => or([thunkspect('\n'), comment])).join('');
+  const hex = n => parseInt(n, 16);
+  const parseHexDigit = () =>
+    or(Array.from("0123456789abcdef", thunkspect));
+  const parseOneByteHex = () =>
+    expect('$') && hex(ntimes(2, parseHexDigit).join(''));
+  const parseTwoByteHex = () =>
+    expect('$') && hex(ntimes(4, parseHexDigit).join(''));
+  const parseImmediate = () =>
+    expect('#') && or([parseTwoByteHex, parseOneByteHex, parseIdentifier]);
+  const parseIndexed = (fn, c) => {
+    const value = fn();
+    const strs = [`,${c.toUpperCase()}`, `,${c}`];
+    or(strs.map(s => () => expectStr(s)));
+    return value;
+  };
+  const parseJMPIndirect = () => {
+    expect('('); ws();
+    const value = or([parseTwoByteHex, parseIdentifier]);
+    expect(')'); ws();
+    return value;
+  };
+  const parseIndirect = (c) => {
+    expect('('); ws();
+    const value = or([parseOneByteHex, parseIdentifier]);
+    if (c) {
+      const strs = [`,${c.toUpperCase()}`, `,${c}`];
+      or(strs.map(s => () => expectStr(s)));
+    }
+    ws(); expect(')');
+    return value;
+  };
+  const parseIndirectPost = (c) => {
+    expect('('); ws();
+    const value = or([parseOneByteHex, parseIdentifier]);
+    const strs = [`),${c.toUpperCase()}`, `,)${c}`];
+    or(strs.map(s => () => expectStr(s))); ws();
+    return value;
+  };
+  const parseAddress = () => {
+    // We don't have to care about the following modes here:
+    // 0. Implied: 0
+    // 1. Accumulator: 0
+    return or([
+      // 2. Immediate mode: reads 8b data
+      () => [AddrModes.Immediate, parseImmediate()],
+      // 3, 4. Indexed and Zero-page Indexed
+      () => [AddrModes.AbsoluteX, parseIndexed(parseTwoByteHex, 'x')],
+      () => [AddrModes.AbsoluteY, parseIndexed(parseTwoByteHex, 'y')],
+      () => [AddrModes.ZeroPageX, parseIndexed(parseOneByteHex, 'x')],
+      () => [AddrModes.ZeroPageY, parseIndexed(parseOneByteHex, 'y')],
+      // 5, 6: Absolute & Zero-page Absolute: read 16b & 8b data
+      // respectively
+      () => [AddrModes.Absolute, parseTwoByteHex()],
+      () => [AddrModes.ZeroPage, parseOneByteHex()],
+      // 7. Post-indexed indirect
+      () => [AddrModes.IndirectPostX, parseIndirectPost('x')],
+      () => [AddrModes.IndirectPostY, parseIndirectPost('y')],
+      // 8. Pre-indexed indirect
+      () => [AddrModes.IndirectX, parseIndirect('x')],
+      () => [AddrModes.IndirectY, parseIndirect('y')],
+      // 9. Indirect
+      () => [AddrModes.Indirect, parseJMPIndirect()],
+      // 10. Relative
+      () => [AddrModes.Relative, parseIdentifier()]]);
+  };
+  const parseInstruction = () => {
+    const mnemonics = MNEMONICS
+      .map(m => [m, m.toLowerCase()]).flat()
+      .map(x => () => expectStr(x));
+    const out = ['instruction', or(mnemonics)]; ws();
+    const addr = optional(parseAddress) || [AddrModes.Implied];
+    for (const a of addr) out.push(a);
+    return out;
+  };
+  const parseIdentifier = () => {
+    const isdigit = () => {
+      const c = curr();
+      return Number.isInteger(c)
+        ? next() && c
+        : errr(`Expected digit, got ${c}`);
+    };
+    const ischar = () => {
+      const c = curr();
+      return /[\w_]/.test(c)
+        ? next() && c
+        : errr(`Expected char, got ${c}`);
+    };
+    return [ischar()]
+      .concat(star(() => or([ischar, isdigit])))
+      .join('');
+  };
+  const parseLabel = () => {
+    const label = parseIdentifier();
+    ws(); expect(':');
+    return ['label', label];
+  };
+  const parseLine = () => {
+    ws();
+    const instruction = or([parseLabel, parseInstruction]);
+    ws(); nl();
+    return instruction;
+  };
+  return star(parseLine);
 }
 
 class ArrayBus extends Array {
