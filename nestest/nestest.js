@@ -71,8 +71,8 @@ const logLines = fs
 
 function diff(a, b) {
   // Ignore cycles & scanlines for now
-  const [aa] = a.split('CYC');
-  const [bb] = b.split('CYC');
+  const [aa] = a.split('SL');
+  const [bb] = b.split('SL');
 
   if (aa !== bb) {
     console.log(red(a));
@@ -110,7 +110,7 @@ while (remaining-- > 0) {
     `Y:${hex(cpu.y)}`,
     `P:${hex(cpu.p)}`,
     `SP:${hex(cpu.s)}`,
-    `CYC:${hex(0, 3, ' ')}`,
+    `CYC:${String(cpu.cycles * 3 % 341).padStart(3, ' ')}`,
     `SL:${0}`
   ].join(' ');
 

@@ -87,7 +87,7 @@ class CPU6502 {
       return addr2;
     // For branches. The +1 accounts for the increment made by `addr8()'
     case AddrModes.Relative:
-      const offset = this.bus.read(this.pc++) & 0xFF;
+      const offset = addr8();
       return ((this.pc & 0xFF00) | (this.pc & 0xFF) + offset);
     default:
       throw new Error(`Invalid Address Mode ${instr.addressingMode}: ${instr}`);
