@@ -115,7 +115,9 @@ while (remaining-- > 0) {
   ].join(' ');
 
   // Compare and print out the stuff
-  diff(logmsg, logLines.shift());
+  const line = logLines.shift();
+  if (line === undefined) break;
+  diff(logmsg, line);
 
   // Revert the Program Counter to the saved location right before the
   // instructionwe just logged above
