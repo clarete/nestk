@@ -30,7 +30,7 @@ const formatParameter = (instruction) => {
   case nes.AddrModes.Absolute:
     if (['JMP', 'JSR'].includes(instruction.mnemonic))
       return `$${param}`;
-    return `$${param} = ${hex(cpu.bus.read(pageaddr(lo)) & 0xFF)}`;
+    return `$${param} = ${hex(cpu.bus.read(p16))}`;
   case nes.AddrModes.ZeroPage:
     return `$${param} = ${hex(cpu.bus.read(lo))}`;
   case nes.AddrModes.ZeroPageX:
@@ -49,8 +49,9 @@ const formatParameter = (instruction) => {
     return `($${param}) = ${hex(pageaddr(p16), 4)}`;
   } case nes.AddrModes.IndirectX: {
     const addr = (lo + cpu.x) & 0xFF;
-    const paddr = hex(pageaddr(addr), 4);
-    const pvalu = hex(cpu.bus.read(pageaddr(addr)));
+    const faddr = (cpu.bus.read(addr) | (cpu.bus.read((addr + 1) & 0xFF) << 8)) & 0xFFFF;
+    const paddr = hex(faddr, 4);
+    const pvalu = hex(cpu.bus.read(faddr));
     return `($${param},X) @ ${hex(addr)} = ${paddr} = ${pvalu}`;
   } case nes.AddrModes.IndirectY: {
     const addr0 = lo & 0xFF;
