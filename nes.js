@@ -35,7 +35,7 @@ class CPU6502 {
     this.cycles = 0;
   }
 
-  parameter(instr) {
+  operand(instr) {
     const addr8 = (offset=0) => {
       return (this.bus.read(this.pc++) & 0xFF) + offset;
     };
@@ -88,21 +88,10 @@ class CPU6502 {
     }
   }
 
-  step() {
-    const cycles = this.cycles;
-    const opcode = this.bus.read(this.pc++);
-    const instruction = getinopc(opcode);
-    if (!instruction)
-      throw new Error(`Invalid opcode ${opcode}`);
-    const parameter = this.parameter(instruction);
-    const executor = this[`_instr_${instruction.mnemonic}`];
-    if (!executor)
-      throw new Error(`No executor for ${instruction}`);
-
-    executor.bind(this)(parameter, instruction);
-
+  instructionCycles(instruction) {
     this.cycles += instruction.cycles;
-    if (true || instruction.checkPageCross) {
+
+    if (instruction.checkPageCross) {
       switch (instruction.addressingMode) {
       case AddrModes.AbsoluteX:
         this.cycles += this._crosspage(this.pc, this.pc - this.x) ? 1 : 0;
@@ -113,6 +102,20 @@ class CPU6502 {
         break;
       }
     }
+  }
+
+  step() {
+    const cycles = this.cycles;
+    const opcode = this.bus.read(this.pc++);
+    const instruction = getinopc(opcode);
+    if (!instruction)
+      throw new Error(`Invalid opcode ${opcode}`);
+    const executor = this[`_instr_${instruction.mnemonic}`];
+    if (!executor)
+      throw new Error(`No executor for ${instruction}`);
+    const operand = this.operand(instruction);
+    this.instructionCycles(instruction);
+    executor.bind(this)(operand, instruction);
     return cycles - this.cycles;
   }
 
