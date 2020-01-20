@@ -34,9 +34,9 @@ const formatParameter = (instruction) => {
   case nes.AddrModes.ZeroPage:
     return `$${param} = ${hex(cpu.bus.read(lo))}`;
   case nes.AddrModes.ZeroPageX:
-    return `$${param} = ${hex(cpu.bus.read(p16))},X @ ${hex((p16 + cpu.x) & 0xFFFF, 4)} = ${hex(cpu.bus.read((p16 + cpu.x) & 0xFFFF) & 0xFF, 2)}`;
+    return `$${param},X @ ${hex((p16 + cpu.x) & 0xFF)} = ${hex(cpu.bus.read((p16 + cpu.x) & 0xFF))}`;
   case nes.AddrModes.ZeroPageY:
-    return `$${param} = ${hex(cpu.bus.read(p16))},Y @ ${hex((pageaddr(p16 + cpu.y)) & 0xFFFF, 4)} = ${hex(cpu.bus.read((pageaddr(p16 + cpu.y)) & 0xFFFF) & 0xFF, 2)}`;
+    return `$${param},Y @ ${hex((p16 + cpu.y) & 0xFF)} = ${hex(cpu.bus.read((p16 + cpu.y) & 0xFF))}`;
   case nes.AddrModes.Immediate:
     return `#$${param}`;
   case nes.AddrModes.AbsoluteX:
