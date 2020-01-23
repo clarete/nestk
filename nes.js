@@ -1265,17 +1265,22 @@ class ArrayBus extends Array {
   }
 }
 
-module.exports = {
-  AddrModeNames,
-  AddrModes,
-  ArrayBus,
-  Instruction,
-  CPU6502,
-  Cartridge,
-  addrmodename,
-  asm6502code,
-  parse6502asm,
-  getinopc,
-  getinstr,
-  inesparser,
-};
+try {
+  // The browser didn't like the `module.exports' thing.
+  module.exports = {
+    AddrModeNames,
+    AddrModes,
+    ArrayBus,
+    Instruction,
+    CPU6502,
+    Cartridge,
+    PPU2c02,
+    addrmodename,
+    asm6502code,
+    parse6502asm,
+    getinopc,
+    getinstr,
+    inesparser,
+  };
+} catch (e) {
+}
