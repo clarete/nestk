@@ -508,13 +508,13 @@ class CPU6502 {  // 2A03
 class MemoryBus {
   constructor() { this.w = []; this.r = []; }
   handleGet(start, end, fn) { this.r.push([v => v >= start && v <= end, fn]); }
-  handlePut(start, end, fn) { this.r.push([v => v >= start && v <= end, fn]); }
+  handlePut(start, end, fn) { this.w.push([v => v >= start && v <= end, fn]); }
   read(addr) { return this.findCallback(this.r, addr)(addr); }
   write(addr, val) { return this.findCallback(this.w, addr)(addr, val); }
   findCallback(where, addr) {
     for (const [filter, callback] of where)
       if (filter(addr)) return callback;
-    throw new Error(`Invalid address ${addr}`);
+    throw new Error(`Invalid address ${addr.toString(16)}`);
   }
 }
 
