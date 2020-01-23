@@ -732,8 +732,8 @@ function inesparser(buffer) {
   // without reading all the flags and without reading possible program RAM
   // that some cartridges used.
   cursor = 16 + trainingEnd;
-  const prg = buffer.slice(cursor, prgsize); cursor += prgsize;
-  const chr = buffer.slice(cursor, chrsize);
+  const prg = buffer.slice(cursor, cursor+prgsize); cursor += prgsize;
+  const chr = buffer.slice(cursor, cursor+chrsize);
   return { prg, chr };
 }
 
