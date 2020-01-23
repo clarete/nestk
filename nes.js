@@ -44,9 +44,9 @@ class CPU6502 {  // 2A03
       return (this.bus.read(this.pc++) & 0xFF) + offset;
     };
     const addr16 = (offset=0) => {
-      const lo = this.bus.read(this.pc++) & 0xFF;
-      const hi = this.bus.read(this.pc++) & 0xFF;
-      const pos = (hi << 8) | (lo & 0xFF);
+      const lo = addr8();
+      const hi = addr8();
+      const pos = (hi << 8) | lo;
       return (pos + offset) & 0xFFFF;
     };
     const addr16ind = (offset=0) => {
