@@ -14,18 +14,18 @@
 
  */
 
-const CPUFlags = {
-  Carry:       1 << 0,
-  Zero:        1 << 1,
-  Interrupt:   1 << 2,
-  Decimal:     1 << 3,
-  Break:       1 << 4,
-  Unused:      1 << 5,
-  Overflow:    1 << 6,
-  Sign:        1 << 7,
-};
-
 class CPU6502 {  // 2A03
+  static Flags = {
+    Carry:       1 << 0,
+    Zero:        1 << 1,
+    Interrupt:   1 << 2,
+    Decimal:     1 << 3,
+    Break:       1 << 4,
+    Unused:      1 << 5,
+    Overflow:    1 << 6,
+    Sign:        1 << 7,
+  };
+
   constructor(bus) {
     this.a = 0;          // General purpose accumulator
     this.x = 0;          // Index register
@@ -140,32 +140,32 @@ class CPU6502 {  // 2A03
   // -- Flags --
 
   flagS(value) {
-    if ((value & 0x80) === 0x80) this.p |= CPUFlags.Sign;
-    else this.p &= ~CPUFlags.Sign;
+    if ((value & 0x80) === 0x80) this.p |= CPU6502.Flags.Sign;
+    else this.p &= ~CPU6502.Flags.Sign;
   }
   flagV(value) {
-    if ((value & 0x40) === 0x40) this.p |= CPUFlags.Overflow;
-    else this.p &= ~CPUFlags.Overflow;
+    if ((value & 0x40) === 0x40) this.p |= CPU6502.Flags.Overflow;
+    else this.p &= ~CPU6502.Flags.Overflow;
   }
   flagB(value) {
-    if (value) this.p |= CPUFlags.Break;
-    else this.p &= ~CPUFlags.Break;
+    if (value) this.p |= CPU6502.Flags.Break;
+    else this.p &= ~CPU6502.Flags.Break;
   }
   flagD(value) {
-    if (value) this.p |= CPUFlags.Decimal;
-    else this.p &= ~CPUFlags.Decimal;
+    if (value) this.p |= CPU6502.Flags.Decimal;
+    else this.p &= ~CPU6502.Flags.Decimal;
   }
   flagI(value) {
-    if (value) this.p |= CPUFlags.Interrupt;
-    else this.p &= ~CPUFlags.Interrupt;
+    if (value) this.p |= CPU6502.Flags.Interrupt;
+    else this.p &= ~CPU6502.Flags.Interrupt;
   }
   flagZ(value) {
-    if (value === 0) this.p |= CPUFlags.Zero;
-    else this.p &= ~CPUFlags.Zero;
+    if (value === 0) this.p |= CPU6502.Flags.Zero;
+    else this.p &= ~CPU6502.Flags.Zero;
   }
   flagC(value) {
-    if (value) this.p |= CPUFlags.Carry;
-    else this.p &= ~CPUFlags.Carry;
+    if (value) this.p |= CPU6502.Flags.Carry;
+    else this.p &= ~CPU6502.Flags.Carry;
   }
   flag(flag) {
     return this.p & flag;
@@ -201,10 +201,10 @@ class CPU6502 {  // 2A03
 
   _instr_ADC(addr) {
     const value = this.bus.read(addr);
-    const res = this.a + value + (+this.flag(CPUFlags.Carry));
+    const res = this.a + value + (+this.flag(CPU6502.Flags.Carry));
     const overflow = ~(this.a ^ value) & (this.a ^ res) & 0x80;
-    if (overflow) this.p |= CPUFlags.Overflow;
-    else this.p &= ~CPUFlags.Overflow;
+    if (overflow) this.p |= CPU6502.Flags.Overflow;
+    else this.p &= ~CPU6502.Flags.Overflow;
     this.a = res & 0xFF;
     this.flagZ(this.a);
     this.flagS(this.a);
@@ -212,10 +212,10 @@ class CPU6502 {  // 2A03
   }
   _instr_SBC(addr) {
     const value = ~this.bus.read(addr);
-    const res = this.a + value + (+this.flag(CPUFlags.Carry));
+    const res = this.a + value + (+this.flag(CPU6502.Flags.Carry));
     const overflow = ~(this.a ^ value) & (this.a ^ res) & 0x80;
-    if (overflow) this.p |= CPUFlags.Overflow;
-    else this.p &= ~CPUFlags.Overflow;
+    if (overflow) this.p |= CPU6502.Flags.Overflow;
+    else this.p &= ~CPU6502.Flags.Overflow;
     this.a = res & 0xFF;
     this.flagZ(this.a);
     this.flagS(this.a);
@@ -251,7 +251,7 @@ class CPU6502 {  // 2A03
   }
   _instr_ROL(addr, instruction) {
     const valueIn = this._getAddrOrAccum(addr, instruction) << 1;
-    const value = (this.flag(CPUFlags.Carry) ? valueIn | 0x1 : valueIn) & 0xFF;
+    const value = (this.flag(CPU6502.Flags.Carry) ? valueIn | 0x1 : valueIn) & 0xFF;
     this.flagC(valueIn > 0xFF);
     this.flagZ(value);
     this.flagS(value);
@@ -259,7 +259,7 @@ class CPU6502 {  // 2A03
   }
   _instr_ROR(addr, instruction) {
     const valueIn = this._getAddrOrAccum(addr, instruction);
-    let value = (this.flag(CPUFlags.Carry) ? valueIn | 0x100 : valueIn) >> 1;
+    let value = (this.flag(CPU6502.Flags.Carry) ? valueIn | 0x100 : valueIn) >> 1;
     this.flagC((valueIn & 0x1) === 0x1);
     this.flagZ(value);
     this.flagS(value);
@@ -391,7 +391,7 @@ class CPU6502 {  // 2A03
     this.flagS(this.a);
   }
   _instr_PLP(addr) {
-    this.p = (this.pop() | CPUFlags.Unused) & ~CPUFlags.Break;
+    this.p = (this.pop() | CPU6502.Flags.Unused) & ~CPU6502.Flags.Break;
   }
 
   _instr_BRK(p) {
@@ -409,35 +409,35 @@ class CPU6502 {  // 2A03
     this.pc = addr;
   }
   _instr_BCS(addr) {
-    if (this.flag(CPUFlags.Carry))
+    if (this.flag(CPU6502.Flags.Carry))
       this._branch(addr);
   }
   _instr_BCC(addr) {
-    if (!this.flag(CPUFlags.Carry))
+    if (!this.flag(CPU6502.Flags.Carry))
       this._branch(addr);
   }
   _instr_BEQ(addr) {
-    if (this.flag(CPUFlags.Zero))
+    if (this.flag(CPU6502.Flags.Zero))
       this._branch(addr);
   }
   _instr_BNE(addr) {
-    if (!this.flag(CPUFlags.Zero))
+    if (!this.flag(CPU6502.Flags.Zero))
       this._branch(addr);
   }
   _instr_BVS(addr) {
-    if (this.flag(CPUFlags.Overflow))
+    if (this.flag(CPU6502.Flags.Overflow))
       this._branch(addr);
   }
   _instr_BVC(addr) {
-    if (!this.flag(CPUFlags.Overflow))
+    if (!this.flag(CPU6502.Flags.Overflow))
       this._branch(addr);
   }
   _instr_BMI(addr) {
-    if (this.flag(CPUFlags.Sign))
+    if (this.flag(CPU6502.Flags.Sign))
       this._branch(addr);
   }
   _instr_BPL(addr) {
-    if (!this.flag(CPUFlags.Sign))
+    if (!this.flag(CPU6502.Flags.Sign))
       this._branch(addr);
   }
 
