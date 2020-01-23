@@ -567,11 +567,14 @@ class NES {
     //   $8000h-$FFFF   Cartridge PRG-ROM Area 32K
 
     // Wire CPU to memory
-    this.cpubus.handleGet(0x0000, 0x1FFF, addr => this.cpumem[addr & 0x07FF]);
-    this.cpubus.handlePut(0x0000, 0x1FFF, (addr, val) => this.cpumem[addr & 0x07FF] = val);
+    this.cpubus.handleGet(0x0000, 0x07FF, addr => this.cpumem[addr & 0x07FF]);
+    this.cpubus.handlePut(0x0000, 0x07FF, (addr, val) => this.cpumem[addr & 0x07FF] = val);
     // Wire PPU to CPU bus
-    this.cpubus.handleGet(0x2000, 0x3FFF, addr => this.ppu.readRegister(addr & 0x7));
-    this.cpubus.handlePut(0x2000, 0x3FFF, (addr, val) => this.ppu.writeRegister(addr & 0x7, val));
+    this.cpubus.handleGet(0x2000, 0x2007, addr => this.ppu.readRegister(addr & 0x7));
+    this.cpubus.handlePut(0x2000, 0x2007, (addr, val) => this.ppu.writeRegister(addr & 0x7, val));
+    // Wire CPU to cartridge
+    this.cpubus.handleGet(0x6000, 0x7FFF, addr => this.cartridge.chr[(addr & 0x7FFF) - 0x6000]);
+    this.cpubus.handleGet(0x8000, 0xFFFF, addr => this.cartridge.prg[(addr & 0xFFFF) - 0x8000]);
     // Wire IO Registers to CPU bus.  Just only one Joypad connected for now
     this.cpubus.handleGet(0x4000, 0x4017, addr => (addr === 0x4016) ? this.jports[0].state() & 0x1 : 0x0);
     this.cpubus.handlePut(0x4000, 0x401F, (addr, val) => {
