@@ -1,6 +1,8 @@
 /*
 
- Thanks to http://nesdev.com/6502.txt
+ Thanks to
+ - http://nesdev.com
+ - http://problemkaputt.de/everynes.htm
 
  * [x] Address Modes
  * [x] CPU Instructions
@@ -500,6 +502,188 @@ class CPU6502 {  // 2A03
   _instr_RRA(addr, instruction) {
     this._instr_ROR(addr, instruction);
     this._instr_ADC(addr);
+  }
+}
+
+class MemoryBus {
+  constructor() { this.w = []; this.r = []; }
+  handleGet(start, end, fn) { this.r.push([v => v >= start && v <= end, fn]); }
+  handlePut(start, end, fn) { this.r.push([v => v >= start && v <= end, fn]); }
+  read(addr) { return this.findCallback(this.r, addr)(addr); }
+  write(addr, val) { return this.findCallback(this.w, addr)(addr, val); }
+  findCallback(where, addr) {
+    for (const [filter, callback] of where)
+      if (filter(addr)) return callback;
+    throw new Error(`Invalid address ${addr}`);
+  }
+}
+
+class Joypad {
+  static Button = {
+    A:      1 << 7,
+    B:      1 << 6,
+    Select: 1 << 5,
+    Enter:  1 << 4,
+    Up:     1 << 3,
+    Dow:    1 << 2,
+    Left:   1 << 1,
+    Right:  1 << 0,
+  };
+  constructor(keyMapping) {
+    this.keyMapping = keyMapping;
+    this.data = 0;
+    this.strobing = false;
+  }
+  pressKey(key) {
+    if (!this.keyMapping[key]) return;
+    this.data |= this.keyMapping[key];
+  }
+  releaseKey(key) {
+    if (!this.keyMapping[key]) return;
+    this.data &= ~this.keyMapping[key];
+  }
+  strobe(onOff) {
+  }
+  state() {
+  }
+}
+
+class NES {
+  constructor() {
+    this.cpumem = new Int16Array(0x1FFF);
+    this.cpubus = new MemoryBus();
+    this.ppubus = new MemoryBus();
+    this.cpu = new CPU6502(this.cpubus);
+    this.ppu = new PPU2c02(this.ppubus);
+    this.jports = [];
+    this.cartridge = null;
+
+    // CPU Memory Map (16bit buswidth, 0-FFFFh)
+    //   $0000h-$07FF   Internal 2K Work RAM (mirrored to 800h-1FFFh)
+    //   $2000h-$2007   Internal PPU Registers (mirrored to 2008h-3FFFh)
+    //   $4000h-$4017   Internal APU Registers
+    //   $4018h-$5FFF   Cartridge Expansion Area almost 8K
+    //   $6000h-$7FFF   Cartridge SRAM Area 8K
+    //   $8000h-$FFFF   Cartridge PRG-ROM Area 32K
+
+    // Wire CPU to memory
+    this.cpubus.handleGet(0x0000, 0x1FFF, addr => this.cpumem[addr & 0x07FF]);
+    this.cpubus.handlePut(0x0000, 0x1FFF, (addr, val) => this.cpumem[addr & 0x07FF] = val);
+    // Wire PPU to CPU bus
+    this.cpubus.handleGet(0x2000, 0x3FFF, addr => this.ppu.readRegister(addr & 0x7));
+    this.cpubus.handlePut(0x2000, 0x3FFF, (addr, val) => this.ppu.writeRegister(addr & 0x7, val));
+    // Wire IO Registers to CPU bus.  Just only one Joypad connected for now
+    this.cpubus.handleGet(0x4000, 0x4017, addr => (addr === 0x4016) ? this.jports[0].state() & 0x1 : 0x0);
+    this.cpubus.handlePut(0x4000, 0x401F, (addr, val) => {
+      switch (addr) {
+      case 0x4014: this.ppu.dma(val); break; // oam dma
+      case 0x4016: this.jports[0].strobe(val === 1); break;
+      }
+    });
+
+    // PPU Memory Map (14bit buswidth, 0-3FFFh)
+    //   $0000-$0FFF   Pattern Table 0 (4K) (256 Tiles)
+    //   $1000-$1FFF   Pattern Table 1 (4K) (256 Tiles)
+    //   $2000-$23FF   Name Table 0 and Attribute Table 0 (1K) (32x30 BG Map)
+    //   $2400-$27FF   Name Table 1 and Attribute Table 1 (1K) (32x30 BG Map)
+    //   $2800-$2BFF   Name Table 2 and Attribute Table 2 (1K) (32x30 BG Map)
+    //   $2C00-$2FFF   Name Table 3 and Attribute Table 3 (1K) (32x30 BG Map)
+    //   $3000-$3EFF   Mirror of 2000h-2EFFh
+    //   $3F00-$3F1F   Background and Sprite Palettes (25 entries used)
+    //   $3F20-$3FFF   Mirrors of 3F00h-3F1Fh
+
+    // Wire PPU to cartridge (will blow up if insertCartridge hasn't been called)
+    this.ppubus.handleGet(0x0000, 0x0FFF, addr => this.cartridge.chr[addr & 0x0FFF]);
+    this.ppubus.handleGet(0x1000, 0x1FFF, addr => this.cartridge.chr[addr & 0x1FFF]);
+  }
+  plugScreen() {
+    return this;
+  }
+  plugController1(joypad) {
+    this.jports.push(joypad);
+    return this;
+  }
+  insertCartridge(cartridgeData) {
+    this.cartridge = Cartridge.fromRomData(cartridgeData);
+    return this;
+  }
+  powerUp() {
+    return this;
+  }
+}
+
+const MirroringModes = {
+  Vertical: 0,
+  Horizontal: 1,
+};
+
+class PPU2c02 {
+  static CTRLFlags = {
+    EnableNMI:       1 << 7,  // Execute NMI on VBlank             (0=Disabled, 1=Enabled)
+    Unused:          1 << 6,  // PPU Master/Slave Selection        (0=Master, 1=Slave) (Not used in NES)
+    SpriteSize:      1 << 5,  // Sprite Size                       (0=8x8, 1=8x16)
+    PatternTable1:   1 << 4,  // Pattern Table Address Background  (0=VRAM 0000h, 1=VRAM 1000h)
+    PatternTable2:   1 << 3,  // Pattern Table Address 8x8 Sprites (0=VRAM 0000h, 1=VRAM 1000h)
+    VRAMIncrement:   1 << 2,  // Port 2007h VRAM Address Increment (0=Increment by 1, 1=Increment by 32)
+    NametableY:      1 << 1,  // Bit1-0 Name Table Scroll Address  (0-3=VRAM 2000h,2400h,2800h,2C00h)
+    NametableX:      1 << 0,  // (That is, Bit0=Horizontal Scroll by 256, Bit1=Vertical Scroll by 240)
+  };
+  static MaskFlags = {
+    EmphasisBlue:         1 << 7, // Bit7  Color Emphasis        (0=Normal, 1=Emphasis)
+    EmphasisGreen:        1 << 6, // Bit6  Color Emphasis        (0=Normal, 1=Emphasis)
+    EmphasisRed:          1 << 5, // Bit5  Color Emphasis        (0=Normal, 1=Emphasis)
+    SpriteVisibility:     1 << 4, // Bit4  Sprite Visibility     (0=Not displayed, 1=Displayed)
+    BackgroundVisibility: 1 << 3, // Bit3  Background Visibility (0=Not displayed, 1=Displayed)
+    SpriteClipping:       1 << 2, // Bit2  Sprite Clipping       (0=Hide in left 8-pixel column, 1=No clipping)
+    BackgroundClipping:   1 << 1, // Bit1  Background Clipping   (0=Hide in left 8-pixel column, 1=No clipping)
+    MonochromeMode:       1 << 0, // Bit0  Monochrome Mode       (0=Color, 1=Monochrome)  (see Palettes chapter)
+  };
+  static StatusFlags = {
+    VBlank:         1 << 7, // Bit7   VBlank Flag    (1=VBlank)
+    SpriteZeroHit:  1 << 6, // Bit6   Sprite 0 Hit   (1=Background-to-Sprite0 collision)
+    LostSprites:    1 << 5, // Bit5   Lost Sprites   (1=More than 8 sprites in 1 scanline)
+                            // Bit4-0 Not used       (Undefined garbage)
+  };
+  static Registers = {
+    Ctrl:       0x2000,
+    Mask:       0x2001,
+    Status:     0x2002,
+    SPRRamAddr: 0x2003,
+  };
+
+  constructor(bus) {
+    this.cycle = 0;
+    this.scanline = 0;
+    this.dot = 0;
+    this.mirroring = MirroringModes.Vertical;
+    this.bus = bus;
+
+    // Registers
+    this.ctrl1 = 0x0;
+    this.ctrl2 = 0x0;
+    this.status = 0x0;
+    this.sprRamAddr = 0x0;
+  }
+  readRegister(index) {
+    switch (index) {
+    case PPU2c02.Registers.Status: return this.status;
+    }
+    throw new Error(`Invalid PPU Register '${index}'`);
+  }
+  writeRegister(index, value) {
+    switch (index) {
+    case PPU2c02.Registers.Ctrl: this.ctrl = value; break;
+    case PPU2c02.Registers.Mask: this.mask = value; break;
+    case PPU2c02.Registers.SPRRamAddr: this.sprRamAddr = value; break;
+    }
+  }
+  nmi() {
+  }
+  preScanline() {
+  }
+  scanline() {
+  }
+  step() {
   }
 }
 
