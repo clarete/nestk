@@ -613,6 +613,66 @@ class NES {
   powerUp() {
     return this;
   }
+
+  disassemble() {
+    return dis6502code(this.cartridge.prg, 0x0000, this.pc);
+  }
+}
+
+function dis6502code(code, offset, pc) {
+  let cursor = 0;
+  const output = [];
+  const curraddr = () => offset + cursor;
+  const peek = (offset=0) => code[cursor+offset];
+  const read8 = () => code[cursor++] & 0xFF;
+  const read16 = () => {
+    const lo = read8();
+    const hi = read8();
+    return (hi << 8) | lo;
+  };
+  while (cursor <= code.length) {
+    let operand = null;
+    const address = curraddr();
+    const opcode = read8();
+    const instruction = getinopc(opcode);
+    const item = { address, opcode, instruction };
+    if (!instruction) {
+      output.push({ ...item, operand, rawdata: [opcode] });
+      continue;
+    }
+    const rawop = [];
+    switch (instruction.size) {
+    case 2:
+      rawop.push(peek());
+      operand = read8();
+      break;
+    case 3:
+      rawop.push(peek(0));
+      rawop.push(peek(1));
+      operand = read16();
+      break;
+    }
+    const rawdata = [opcode].concat(rawop);
+    let fmtop;
+    const fixrl = rl => ((curraddr() & 0xFF00) | (curraddr() & 0xFF) + (rl << 24 >> 24));
+    switch (instruction.addressingMode) {
+    case AddrModes.Implied:     fmtop = '';                            break;
+    case AddrModes.Immediate:   fmtop = `#$${hex(operand)}`;           break;
+    case AddrModes.Absolute:    fmtop = `$${hex(operand, 4)}`;         break;
+    case AddrModes.AbsoluteX:   fmtop = `$${hex(operand, 4)},X`;       break;
+    case AddrModes.AbsoluteY:   fmtop = `$${hex(operand, 4)},Y`;       break;
+    case AddrModes.ZeroPage:    fmtop = `$${hex(operand)}`;            break;
+    case AddrModes.ZeroPageX:   fmtop = `$${hex(operand)},X`;          break;
+    case AddrModes.ZeroPageY:   fmtop = `$${hex(operand)},Y`;          break;
+    case AddrModes.Indirect:    fmtop = `($${hex(operand, 4)})`;       break;
+    case AddrModes.IndirectX:   fmtop = `($${hex(operand, 4)},X)`;     break;
+    case AddrModes.IndirectY:   fmtop = `($${hex(operand, 4)}),Y`;     break;
+    case AddrModes.Relative:    fmtop = `$${hex(fixrl(operand), 4)}`;  break;
+    case AddrModes.Accumulator: fmtop = `A`;                           break;
+    }
+    output.push({ ...item, operand, rawdata, fmtop });
+  }
+  return output;
 }
 
 const MirroringModes = {
