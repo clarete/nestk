@@ -86,7 +86,7 @@ class CPU6502 {  // 2A03
       return addr2;
     } case AddrModes.Relative: {
       const offset = addr8();
-      return ((this.pc & 0xFF00) | (this.pc & 0xFF) + offset);
+      return ((this.pc & 0xFF00) | (this.pc & 0xFF) + (offset << 24 >> 24));
     } default:
       throw new Error(`Invalid Address Mode ${instr.addressingMode}: ${instr}`);
     }
