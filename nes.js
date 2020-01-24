@@ -1328,22 +1328,30 @@ class ArrayBus extends Array {
   }
 }
 
+const hex = (data, padSize=2, padChr='0') => data
+  .toString(16)
+  .toUpperCase()
+  .padStart(padSize, padChr);
+
 try {
   // The browser didn't like the `module.exports' thing.
   module.exports = {
     AddrModeNames,
     AddrModes,
     ArrayBus,
-    Instruction,
     CPU6502,
     Cartridge,
+    Instruction,
+    MemoryBus,
     PPU2c02,
     addrmodename,
     asm6502code,
-    parse6502asm,
+    dis6502code,
     getinopc,
     getinstr,
+    hex,
     inesparser,
+    parse6502asm,
   };
 } catch (e) {
 }

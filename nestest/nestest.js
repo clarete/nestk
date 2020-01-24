@@ -1,18 +1,19 @@
 const fs = require('fs');
 const nes = require('../nes');
 
-const cpu = new nes.CPU6502(new nes.ArrayBus(65536));
+const mem = new Int16Array(0xFFFF);
+const bus = new nes.MemoryBus();
+const cpu = new nes.CPU6502(bus);
 const crt = nes.Cartridge.fromRomData(fs.readFileSync('./nestest.nes'));
 
-cpu.pc = 0xC000;
-cpu.bus.writeBuffer(cpu.pc, crt.prg);
+const pc = cpu.pc = 0xC000;
+const end = pc + (0xFFFF - 0x8000);
+bus.handleGet(pc, end, addr => crt.prg[addr - pc]);
+bus.handleGet(0x0000, 0xFFFF, addr => mem[addr]);
+bus.handlePut(0x0000, 0xFFFF, (addr, value) => mem[addr] = value);
 
 let remaining = crt.prg.length;
-
-const hex = (data, padSize=2, padChr='0') => data
-  .toString(16)
-  .toUpperCase()
-  .padStart(padSize, padChr);
+const hex = nes.hex;
 
 const formatParameter = (instruction) => {
   const lo = cpu.bus.read(cpu.pc + 1) & 0xFF;
@@ -87,9 +88,10 @@ function diff(a, b) {
 }
 
 while (remaining-- > 0) {
-  const pc = cpu.pc;
   const opcaddr = cpu.pc;
   const opcode = cpu.bus.read(cpu.pc);
+  if (!opcode)
+    throw new Error(`INVALID READ AT ${hex(opcaddr)}`);
   const instruction = nes.getinopc(opcode);
   if (!instruction)
     throw new Error(`UNKNOWN OPCODE: ${hex(opcode)}.`);
