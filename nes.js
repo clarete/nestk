@@ -812,10 +812,8 @@ const AddrModes = {
   Indirect: 8,
   IndirectX: 9,
   IndirectY: 10,
-  IndirectPostX: 11,
-  IndirectPostY: 12,
-  Relative: 13,
-  Accumulator: 14,
+  Relative: 11,
+  Accumulator: 12,
 };
 
 const AddrModeNames = {
@@ -830,9 +828,8 @@ const AddrModeNames = {
   8: 'Indirect',
   9: 'IndirectX',
   10: 'IndirectY',
-  11: 'IndirectPostX',
-  12: 'IndirectPostY',
-  13: 'Relative',
+  11: 'Relative',
+  12: 'Accumulator',
 };
 
 const addrmodename = am => AddrModeNames[am];
