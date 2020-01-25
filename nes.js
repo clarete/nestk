@@ -1330,6 +1330,11 @@ const hex = (data, padSize=2, padChr='0') => data
   .toUpperCase()
   .padStart(padSize, padChr);
 
+const safehex = (data, padSize=2, padChr='0') =>
+  data !== undefined
+    ? hex(data, padSize, padChr)
+    : '?'.padStart(padSize, padChr='?');
+
 try {
   // The browser didn't like the `module.exports' thing.
   module.exports = {
@@ -1349,6 +1354,7 @@ try {
     hex,
     inesparser,
     parse6502asm,
+    safehex,
   };
 } catch (e) {
 }

@@ -10,7 +10,7 @@ for (const line of nes.dis6502code(crt.prg, pc, pc)) {
   const { address, opcode, instruction, fmtop, rawdata } = line;
   const mnemonic = instruction ? instruction.mnemonic : '???';
   const data = instruction
-    ? rawdata.map(x => nes.hex(x)).join(' ')
+    ? rawdata.map(x => nes.safehex(x)).join(' ')
     : nes.hex(opcode);
 
   process.stdout.write(nes.hex(address, 4));
