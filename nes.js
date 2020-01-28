@@ -615,44 +615,47 @@ class NES {
   }
 
   disassemble() {
-    return dis6502code(this.cartridge.prg, 0x0000, this.pc);
+    // FIX-TODO: This will break with >16k PRG games
+    const offset = (this.cartridge.prg.length === 0x4000)
+      ? 0xC000
+      : 0x8000;
+    return dis6502code(this.cartridge.prg, offset);
   }
 }
 
-function dis6502code(code, offset, pc) {
+function dis6502code(code, offset) {
   let cursor = 0;
   const output = [];
   const curraddr = () => offset + cursor;
-  const peek = (offset=0) => code[cursor+offset];
+  const peek = (o=0) => code[cursor+o];
   const read8 = () => code[cursor++] & 0xFF;
   const read16 = () => {
     const lo = read8();
     const hi = read8();
     return (hi << 8) | lo;
   };
-  while (cursor <= code.length) {
+  while (cursor < code.length) {
     let operand = null;
     const address = curraddr();
     const opcode = read8();
     const instruction = getinopc(opcode);
     const item = { address, opcode, instruction };
-    if (!instruction) {
-      output.push({ ...item, operand, rawdata: [opcode] });
+    const rawdata = [opcode];
+    if (!instruction || instruction.illegal) {
+      output.push({ ...item, operand, rawdata });
       continue;
     }
-    const rawop = [];
     switch (instruction.size) {
     case 2:
-      rawop.push(peek());
+      rawdata.push(peek());
       operand = read8();
       break;
     case 3:
-      rawop.push(peek(0));
-      rawop.push(peek(1));
+      rawdata.push(peek(0));
+      rawdata.push(peek(1));
       operand = read16();
       break;
     }
-    const rawdata = [opcode].concat(rawop);
     let fmtop;
     const fixrl = rl => ((curraddr() & 0xFF00) | (curraddr() & 0xFF) + (rl << 24 >> 24));
     switch (instruction.addressingMode) {
@@ -751,13 +754,14 @@ class PPU2c02 {
 }
 
 class Instruction {
-  constructor(mnemonic, opcode, am, size, cycles, checkPageCross) {
+  constructor(mnemonic, opcode, am, size, cycles, checkPageCross, illegal) {
     this.mnemonic = mnemonic;
     this.opcode = opcode;
     this.addressingMode = am;
     this.size = size;
     this.cycles = cycles;
     this.checkPageCross = checkPageCross;
+    this.illegal = illegal;
   }
   toString() {
     return `${this.mnemonic}(${this.opcode.toString(16)})`;
@@ -847,10 +851,10 @@ const MNEMONICS = [
 
 const getinopc = (opc) => INSTRUCTIONS_BY_OPC[opc];
 const getinstr = (mnemonic, am) => INSTRUCTIONS_BY_MAM[[mnemonic, am]];
-const newinstr = (mnemonic, opc, am, size, cycles, checkPageCross=false) =>
+const newinstr = (mnemonic, opc, am, size, cycles, checkPageCross=false, illegal=false) =>
   INSTRUCTIONS_BY_OPC[opc] =
   INSTRUCTIONS_BY_MAM[[mnemonic, am]] =
-  new Instruction(mnemonic, opc, am, size, cycles, checkPageCross);
+  new Instruction(mnemonic, opc, am, size, cycles, checkPageCross, illegal);
 
 newinstr('ADC', 0x69, AddrModes.Immediate,   2, 2);
 newinstr('ADC', 0x65, AddrModes.ZeroPage,    2, 3);
@@ -1033,65 +1037,65 @@ newinstr('TYA', 0x98, AddrModes.Implied,     1, 2);
 
 // Non-official opcodes
 // http://wiki.nesdev.com/w/index.php/Programming_with_unofficial_opcodes
-newinstr('LAX', 0xA3, AddrModes.IndirectX,   2, 6);
-newinstr('LAX', 0xA7, AddrModes.ZeroPage,    2, 3);
-newinstr('LAX', 0xAF, AddrModes.Absolute,    3, 4);
-newinstr('LAX', 0xB3, AddrModes.IndirectY,   2, 5);
-newinstr('LAX', 0xB7, AddrModes.ZeroPageY,   2, 4);
+newinstr('LAX', 0xA3, AddrModes.IndirectX,   2, 6, false, true);
+newinstr('LAX', 0xA7, AddrModes.ZeroPage,    2, 3, false, true);
+newinstr('LAX', 0xAF, AddrModes.Absolute,    3, 4, false, true);
+newinstr('LAX', 0xB3, AddrModes.IndirectY,   2, 5, false, true);
+newinstr('LAX', 0xB7, AddrModes.ZeroPageY,   2, 4, false, true);
 
-newinstr('LAX', 0xBF, AddrModes.AbsoluteY,   3, 4);
-newinstr('SAX', 0x83, AddrModes.IndirectX,   2, 6);
-newinstr('SAX', 0x87, AddrModes.ZeroPage,    2, 3);
-newinstr('SAX', 0x8F, AddrModes.Absolute,    3, 4);
-newinstr('SAX', 0x97, AddrModes.ZeroPageY,   2, 4);
+newinstr('LAX', 0xBF, AddrModes.AbsoluteY,   3, 4, false, true);
+newinstr('SAX', 0x83, AddrModes.IndirectX,   2, 6, false, true);
+newinstr('SAX', 0x87, AddrModes.ZeroPage,    2, 3, false, true);
+newinstr('SAX', 0x8F, AddrModes.Absolute,    3, 4, false, true);
+newinstr('SAX', 0x97, AddrModes.ZeroPageY,   2, 4, false, true);
 
-newinstr('DCP', 0xC3, AddrModes.IndirectX,   2, 8);
-newinstr('DCP', 0xC7, AddrModes.ZeroPage,    2, 5);
-newinstr('DCP', 0xCF, AddrModes.Absolute,    3, 6);
-newinstr('DCP', 0xD3, AddrModes.IndirectY,   2, 8);
-newinstr('DCP', 0xD7, AddrModes.ZeroPageX,   2, 6);
-newinstr('DCP', 0xDB, AddrModes.AbsoluteY,   3, 7);
-newinstr('DCP', 0xDF, AddrModes.AbsoluteX,   3, 7);
+newinstr('DCP', 0xC3, AddrModes.IndirectX,   2, 8, false, true);
+newinstr('DCP', 0xC7, AddrModes.ZeroPage,    2, 5, false, true);
+newinstr('DCP', 0xCF, AddrModes.Absolute,    3, 6, false, true);
+newinstr('DCP', 0xD3, AddrModes.IndirectY,   2, 8, false, true);
+newinstr('DCP', 0xD7, AddrModes.ZeroPageX,   2, 6, false, true);
+newinstr('DCP', 0xDB, AddrModes.AbsoluteY,   3, 7, false, true);
+newinstr('DCP', 0xDF, AddrModes.AbsoluteX,   3, 7, false, true);
 
-newinstr('ISC', 0xE3, AddrModes.IndirectX,   2, 8);
-newinstr('ISC', 0xE7, AddrModes.ZeroPage,    2, 5);
-newinstr('ISC', 0xEF, AddrModes.Absolute,    3, 6);
-newinstr('ISC', 0xF3, AddrModes.IndirectY,   2, 8);
-newinstr('ISC', 0xF7, AddrModes.ZeroPageX,   2, 6);
-newinstr('ISC', 0xFB, AddrModes.AbsoluteY,   3, 7);
-newinstr('ISC', 0xFF, AddrModes.AbsoluteX,   3, 7);
+newinstr('ISC', 0xE3, AddrModes.IndirectX,   2, 8, false, true);
+newinstr('ISC', 0xE7, AddrModes.ZeroPage,    2, 5, false, true);
+newinstr('ISC', 0xEF, AddrModes.Absolute,    3, 6, false, true);
+newinstr('ISC', 0xF3, AddrModes.IndirectY,   2, 8, false, true);
+newinstr('ISC', 0xF7, AddrModes.ZeroPageX,   2, 6, false, true);
+newinstr('ISC', 0xFB, AddrModes.AbsoluteY,   3, 7, false, true);
+newinstr('ISC', 0xFF, AddrModes.AbsoluteX,   3, 7, false, true);
 
-newinstr('SLO', 0x03, AddrModes.IndirectX,   2, 8);
-newinstr('SLO', 0x07, AddrModes.ZeroPage,    2, 5);
-newinstr('SLO', 0x0F, AddrModes.Absolute,    3, 6);
-newinstr('SLO', 0x13, AddrModes.IndirectY,   2, 8);
-newinstr('SLO', 0x17, AddrModes.ZeroPageX,   2, 6);
-newinstr('SLO', 0x1B, AddrModes.AbsoluteY,   3, 7);
-newinstr('SLO', 0x1F, AddrModes.AbsoluteX,   3, 7);
+newinstr('SLO', 0x03, AddrModes.IndirectX,   2, 8, false, true);
+newinstr('SLO', 0x07, AddrModes.ZeroPage,    2, 5, false, true);
+newinstr('SLO', 0x0F, AddrModes.Absolute,    3, 6, false, true);
+newinstr('SLO', 0x13, AddrModes.IndirectY,   2, 8, false, true);
+newinstr('SLO', 0x17, AddrModes.ZeroPageX,   2, 6, false, true);
+newinstr('SLO', 0x1B, AddrModes.AbsoluteY,   3, 7, false, true);
+newinstr('SLO', 0x1F, AddrModes.AbsoluteX,   3, 7, false, true);
 
-newinstr('RLA', 0x23, AddrModes.IndirectX,   2, 8);
-newinstr('RLA', 0x27, AddrModes.ZeroPage,    2, 5);
-newinstr('RLA', 0x2F, AddrModes.Absolute,    3, 6);
-newinstr('RLA', 0x33, AddrModes.IndirectY,   2, 8);
-newinstr('RLA', 0x37, AddrModes.ZeroPageX,   2, 6);
-newinstr('RLA', 0x3B, AddrModes.AbsoluteY,   3, 7);
-newinstr('RLA', 0x3F, AddrModes.AbsoluteX,   3, 7);
+newinstr('RLA', 0x23, AddrModes.IndirectX,   2, 8, false, true);
+newinstr('RLA', 0x27, AddrModes.ZeroPage,    2, 5, false, true);
+newinstr('RLA', 0x2F, AddrModes.Absolute,    3, 6, false, true);
+newinstr('RLA', 0x33, AddrModes.IndirectY,   2, 8, false, true);
+newinstr('RLA', 0x37, AddrModes.ZeroPageX,   2, 6, false, true);
+newinstr('RLA', 0x3B, AddrModes.AbsoluteY,   3, 7, false, true);
+newinstr('RLA', 0x3F, AddrModes.AbsoluteX,   3, 7, false, true);
 
-newinstr('SRE', 0x43, AddrModes.IndirectX,   2, 8);
-newinstr('SRE', 0x47, AddrModes.ZeroPage,    2, 5);
-newinstr('SRE', 0x4F, AddrModes.Absolute,    3, 6);
-newinstr('SRE', 0x53, AddrModes.IndirectY,   2, 8);
-newinstr('SRE', 0x57, AddrModes.ZeroPageX,   2, 6);
-newinstr('SRE', 0x5B, AddrModes.AbsoluteY,   3, 7);
-newinstr('SRE', 0x5F, AddrModes.AbsoluteX,   3, 7);
+newinstr('SRE', 0x43, AddrModes.IndirectX,   2, 8, false, true);
+newinstr('SRE', 0x47, AddrModes.ZeroPage,    2, 5, false, true);
+newinstr('SRE', 0x4F, AddrModes.Absolute,    3, 6, false, true);
+newinstr('SRE', 0x53, AddrModes.IndirectY,   2, 8, false, true);
+newinstr('SRE', 0x57, AddrModes.ZeroPageX,   2, 6, false, true);
+newinstr('SRE', 0x5B, AddrModes.AbsoluteY,   3, 7, false, true);
+newinstr('SRE', 0x5F, AddrModes.AbsoluteX,   3, 7, false, true);
 
-newinstr('RRA', 0x63, AddrModes.IndirectX,   2, 8);
-newinstr('RRA', 0x67, AddrModes.ZeroPage,    2, 5);
-newinstr('RRA', 0x6F, AddrModes.Absolute,    3, 6);
-newinstr('RRA', 0x73, AddrModes.IndirectY,   2, 8);
-newinstr('RRA', 0x77, AddrModes.ZeroPageX,   2, 6);
-newinstr('RRA', 0x7B, AddrModes.AbsoluteY,   3, 7);
-newinstr('RRA', 0x7F, AddrModes.AbsoluteX,   3, 7);
+newinstr('RRA', 0x63, AddrModes.IndirectX,   2, 8, false, true);
+newinstr('RRA', 0x67, AddrModes.ZeroPage,    2, 5, false, true);
+newinstr('RRA', 0x6F, AddrModes.Absolute,    3, 6, false, true);
+newinstr('RRA', 0x73, AddrModes.IndirectY,   2, 8, false, true);
+newinstr('RRA', 0x77, AddrModes.ZeroPageX,   2, 6, false, true);
+newinstr('RRA', 0x7B, AddrModes.AbsoluteY,   3, 7, false, true);
+newinstr('RRA', 0x7F, AddrModes.AbsoluteX,   3, 7, false, true);
 
 function asm6502code(code) {
   // Writing machinery
