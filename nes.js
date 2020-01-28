@@ -25,6 +25,17 @@ class CPU6502 {  // 2A03
     Overflow:    1 << 6,
     Sign:        1 << 7,
   };
+  static Interrupt = {
+    None:  0,
+    IRQ:   1,
+    Reset: 2,
+    NMI:   3,
+  };
+  static InterruptVectors = {
+    NMI:   0xFFFA,
+    RESET: 0xFFFC,
+    IRQ:   0xFFFE,
+  };
 
   constructor(bus) {
     this.a = 0;          // General purpose accumulator
@@ -33,10 +44,18 @@ class CPU6502 {  // 2A03
     this.s = 0xFD;       // Stack pointer
     this.p = 0x24;       // Status flags
     this.pc = 0;         // Program Counter
-
+    this.int = CPU6502.Interrupt.None;
     // Memory bus & clock
     this.bus = bus;
     this.cycles = 0;
+    this.delay = 0;
+  }
+
+  resetPC() {
+    const addr = CPU6502.InterruptVectors.RESET;
+    const lo = this.bus.read(addr + 0);
+    const hi = this.bus.read(addr + 1);
+    this.pc = (hi << 8) | lo;
   }
 
   operand(instr) {
@@ -109,6 +128,18 @@ class CPU6502 {  // 2A03
   }
 
   step() {
+    // The CPU is handling a DMA request
+    if (this.delay > 0) {
+      this.delay--;
+      return 1;
+    }
+    // Before each instructio, CPU checks for interrupts and executes
+    // its handlers if necessary
+    if (this.int === CPU6502.Interrupt.IRQ &&
+        this.flag(CPU6502.Flags.Interrupt) === 0) this.irq();
+    if (this.int === CPU6502.Interrupt.Reset) this.reset();
+    if (this.int === CPU6502.Interrupt.NMI) this.nmi();
+    // Instruction execution
     const cycles = this.cycles;
     const opcode = this.bus.read(this.pc++);
     const instruction = getinopc(opcode);
@@ -502,6 +533,17 @@ class CPU6502 {  // 2A03
   _instr_RRA(addr, instruction) {
     this._instr_ROR(addr, instruction);
     this._instr_ADC(addr);
+  }
+
+  // Interrupts
+  requestInterrupt(interrupt) {
+    this.int = interrupt;
+  }
+  irq() {
+  }
+  nmi() {
+  }
+  reset() {
   }
 }
 
