@@ -37,30 +37,20 @@ const DbgRegList = styled.ul`
   }
 `;
 
-const DbgDisWrap = styled.div`
+const DbgDisWrap = styled.ol`
   /* Sizes & Spacing */
   height: 135px;
   margin-bottom: 10px;
   padding: 0 10px 10px 10px;
   /* Formatting */
   overflow-y: scroll;
+  list-style: none;
   /* Formatting (Firefox) */
   scrollbar-color: #fe0 #fd0;
   scrollbar-width: thin;
   /* Formatting (Chrome) */
   &::-webkit-scrollbar { width: 6px; background-color: #fd0; }
   &::-webkit-scrollbar-thumb { background-color: #fa0; }
-
-  /* -- Settings for direct child 'ol'. Didn't want to put it
-        here, but didn't want to create two nested wrappers -- */
-
-  & ol {
-    /* Spacing */
-    padding: 0;
-    margin: 0;
-    /* Formatting */
-    list-style: none;
-  }
 `;
 
 const DbgPalletes = styled.div`
@@ -74,14 +64,23 @@ const DbgChr = styled.canvas`
 
 const DbgDisItem = ({ item }) => {
   const { state: { emulator } } = React.useContext(store);
-  const current = item.address === emulator.cpu.pc ? '>' : '\u00A0';
+  const current = item.address === emulator.cpu.pc;
   const bindata = item.rawdata.map(x => nes.safehex(x)).join(' ');
   const mnemonic = (item.instruction && !item.instruction.illegal)
     ? item.instruction.mnemonic
     : '.db';
+  const itemRef = React.useRef();
+  React.useLayoutEffect(() => {
+    if (itemRef.current && current) {
+      (itemRef
+        .current
+        .parentElement
+        .scrollTo(0, itemRef.current.scrollHeight - 25));
+    }
+  });
   return (
-    <li>
-      <div style={{ width: 15, float: 'left', clear: 'left' }}>{current}</div>
+    <li ref={itemRef}>
+      <div style={{ width: 15, float: 'left', clear: 'left' }}>{current ? '>' : '\u00A0'}</div>
       <div style={{ width: 45, float: 'left' }}>{nes.hex(item.address, 4)}</div>
       <div style={{ width: 70, float: 'left' }}>{bindata}</div>
       <div style={{ width: 40, float: 'left' }}>{mnemonic}</div>
@@ -104,14 +103,14 @@ const DbgDisList = () => {
       <button onClick={e => dispatch({ type: 'step' })}>
         ↪
       </button>
-      <ol>
+      <DbgDisWrap>
         {disassembled.map(i =>
           <DbgDisItem
             id={`dbg-dist-item-${i.address}`}
             key={`key-${i.address}`}
             item={i}
           />)}
-      </ol>
+      </DbgDisWrap>
     </div>
   );
 };
@@ -130,9 +129,7 @@ const Debugger = () =>  {
             <li><b>PC:</b> ${nes.hex(emulator.cpu.pc)}</li>
           </DbgRegList>
         </DbgRegWrap>
-        <DbgDisWrap id="dbg-dis-wrap">
-          <DbgDisList />
-        </DbgDisWrap>
+        <DbgDisList />
         <DbgPalletes>
           <DbgChr style={{ marginRight: 2 }}></DbgChr>
           <DbgChr style={{ marginLeft:  2 }}></DbgChr>
