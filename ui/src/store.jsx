@@ -13,7 +13,6 @@ const createReducer = () => {
     switch (action.type) {
     /* Insert the cartridge into the  */
     case 'insert':
-      console.log('what happens here');
       state.emulator.insertCartridge(new Buff(action.data));
       return { ...state };
     /* Execute single instruction */
@@ -27,11 +26,11 @@ const createReducer = () => {
     default:
       throw new Error(`No action ${action.type}`);
     };
-  }
-}
+  };
+};
 
 const EmulatorProvider = ({ children }) => {
-  const memoizedReducer = React.useCallback(createReducer(), [])
+  const memoizedReducer = React.useCallback(createReducer(), []);
   const [state, dispatch] = useReducer(memoizedReducer, initialState);
   return <Provider value={{ state, dispatch }}>{children}</Provider>;
 };

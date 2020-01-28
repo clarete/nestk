@@ -90,7 +90,7 @@ const DbgDisItem = ({ item }) => {
   );
 };
 
-const DbgDisList = (/* { emulator } */) => {
+const DbgDisList = () => {
   const { state, dispatch } = React.useContext(store);
   const [disassembled, setDisassembled] = React.useState([]);
   React.useEffect(
