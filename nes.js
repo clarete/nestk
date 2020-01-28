@@ -1,15 +1,17 @@
 /*
 
  Thanks to
- - http://nesdev.com
- - http://problemkaputt.de/everynes.htm
+ - https://nesdev.com
+ - https://problemkaputt.de/everynes.htm
+ - https://fms.komkon.org/EMUL8/NES.html
 
- * [x] Address Modes
- * [x] CPU Instructions
+ * [x] Addressing Modes
+ * [x] Instructions
+ * [ ] Interrupts
  * [-] Cycles
  * [-] PPU
  * [ ] Input
- * [ ] Cartridge
+ * [-] Cartridge
  * [-] iNES format
 
  */
@@ -151,7 +153,7 @@ class CPU6502 {  // 2A03
     const operand = this.operand(instruction);
     this.instructionCycles(instruction);
     executor.bind(this)(operand, instruction);
-    return cycles - this.cycles;
+    return this.cycles - cycles;
   }
 
   run() {
@@ -650,6 +652,7 @@ class NES {
   }
   insertCartridge(cartridgeData) {
     this.cartridge = Cartridge.fromRomData(cartridgeData);
+    this.cpu.resetPC();
     return this;
   }
   powerUp() {
@@ -662,6 +665,10 @@ class NES {
       ? 0xC000
       : 0x8000;
     return dis6502code(this.cartridge.prg, offset);
+  }
+
+  step() {
+    this.cpu.step();
   }
 }
 
@@ -1394,6 +1401,8 @@ try {
     CPU6502,
     Cartridge,
     Instruction,
+    Joypad,
+    NES,
     MemoryBus,
     PPU2c02,
     addrmodename,

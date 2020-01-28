@@ -1,0 +1,29 @@
+{
+  "name": "nesjs-ui",
+  "version": "0.0.1",
+  "description": "teeny ui for a teeny emulator",
+  "main": "index.jsx",
+  "scripts": {
+    "dev": "webpack-dev-server"
+  },
+  "author": "Lincoln Clarete",
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "@material-ui/core": "^4.5.0",
+    "react": "^16.10.2",
+    "react-dom": "^16.10.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.8.3",
+    "@babel/plugin-proposal-class-properties": "^7.8.3",
+    "@babel/preset-env": "^7.8.3",
+    "@babel/preset-react": "^7.8.3",
+    "babel-loader": "^8.0.6",
+    "jasmine": "^3.5.0",
+    "source-map-loader": "^0.2.4",
+    "styled-components": "^5.0.0",
+    "webpack": "^4.41.0",
+    "webpack-cli": "^3.3.9",
+    "webpack-dev-server": "^3.8.2"
+  }
+}
