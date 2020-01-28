@@ -209,15 +209,16 @@ export default function() {
   const { dispatch, state: { emulator } } = React.useContext(store);
   const joypad0 = createJoypad0();
   /* Input Event Mapping */
-  window.addEventListener('keyup', ({ keyCode }) => joypad0.releaseKey(keyCode));
-  window.addEventListener('keydown', (event) => {
-    event.stopImmediatePropagation();
-    if (!emulator.cartridge) return;
-    switch (event.keyCode) {
-    case 'N'.charCodeAt(0): dispatch({ type: 'step' }); break;
-    default: joypad0.pressKey(event.keyCode); break;
-    }
-  });
+  React.useEffect(() => {
+    window.addEventListener('keyup', ({ keyCode }) => joypad0.releaseKey(keyCode));
+    window.addEventListener('keydown', (event) => {
+      if (!emulator.cartridge) return;
+      switch (event.keyCode) {
+        case 'N'.charCodeAt(0): dispatch({ type: 'step' }); break;
+        default: joypad0.pressKey(event.keyCode); break;
+      }
+    });
+  }, []);
   /* Finish setting up emulator  */
   emulator.plugScreen();
   emulator.plugController1(joypad0);
