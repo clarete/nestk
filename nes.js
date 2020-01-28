@@ -616,7 +616,7 @@ class NES {
     this.cpubus.handlePut(0x2000, 0x2007, (addr, val) => this.ppu.writeRegister(addr & 0x7, val));
     // Wire CPU to cartridge
     this.cpubus.handleGet(0x6000, 0x7FFF, addr => this.cartridge.chr[(addr & 0x7FFF) - 0x6000]);
-    this.cpubus.handleGet(0x8000, 0xFFFF, addr => this.cartridge.prg[(addr & 0xFFFF) - 0x8000]);
+    this.cpubus.handleGet(0x8000, 0xFFFF, addr => this.cartridge.readprg(addr));
     // Wire IO Registers to CPU bus.  Just only one Joypad connected for now
     this.cpubus.handleGet(0x4000, 0x4017, addr => (addr === 0x4016) ? this.jports[0].state() & 0x1 : 0x0);
     this.cpubus.handlePut(0x4000, 0x401F, (addr, val) => {
@@ -1194,6 +1194,10 @@ class Cartridge {
   constructor({ prg, chr }) {
     this.prg = prg;
     this.chr = chr;
+  }
+  readprg(addr) {
+    // FIX-TODO: Should work for banks >16K
+    return this.prg[addr > 0xC000 ? addr & 0x3FFF : addr];
   }
   static fromRomData(romData) {
     return new Cartridge(inesparser(romData));
