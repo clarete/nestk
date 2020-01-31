@@ -4,26 +4,23 @@ import Buff from './buff';
 import * as nes from '../../nes';
 
 const emulator = new nes.NES();
-const initialState = { emulator };
+const initialState = { emulator, disassembled: [] };
 const store = createContext(initialState);
 const { Provider } = store;
 
 const createReducer = () => {
   return (state, action) => {
     switch (action.type) {
-    /* Insert the cartridge into the  */
-    case 'insert':
+    case 'insert':      /* Insert the cartridge into the console */
       state.emulator.insertCartridge(new Buff(action.data));
-      return { ...state };
-    /* Execute single instruction */
-    case 'step':
+      const disassembled = state.emulator.disassemble();
+      return { ...state, disassembled };
+    case 'step':        /* Execute single instruction */
       state.emulator.step();
       return { ...state };
-    /* Just force re-rendering of components depending on the emulator */
-    case 'update':
+    case 'update':      /* Force re-rendering what depend on the emulator */
       return { ...state };
-    /* Not a valid event */
-    default:
+    default:            /* Not a valid event */
       throw new Error(`No action ${action.type}`);
     };
   };

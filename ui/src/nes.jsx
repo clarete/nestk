@@ -1,6 +1,7 @@
 import * as React from "react";
 import PropTypes from "prop-types";
 import styled from 'styled-components';
+import { List } from 'react-virtualized';
 
 import { store } from './store';
 import * as nes from '../../nes';
@@ -37,83 +38,71 @@ const DbgRegList = styled.ul`
   }
 `;
 
-const DbgDisWrap = styled.ol`
+const DbgDisWrap = styled.div`
   /* Sizes & Spacing */
-  height: 140px;
+  padding: 0 0 10px 10px;
   margin-bottom: 10px;
-  padding: 0 10px 10px 10px;
-  /* Formatting */
-  overflow-y: scroll;
-  list-style: none;
-  /* Formatting (Firefox) */
-  scrollbar-color: #fe0 #fd0;
-  scrollbar-width: thin;
-  /* Formatting (Chrome) */
-  &::-webkit-scrollbar { width: 6px; background-color: #fd0; }
-  &::-webkit-scrollbar-thumb { background-color: #fa0; }
+  /* Formatting of child node */
+  & .dbg-lst {
+    /* Formatting (Firefox) */
+    scrollbar-color: #fe0 #fd0;
+    scrollbar-width: thin;
+    /* Formatting (Chrome) */
+    &::-webkit-scrollbar { width: 6px; background-color: #fd0; }
+    &::-webkit-scrollbar-thumb { background-color: #fa0; }
+  }
+  & .dbg-current {
+    font-weight: bold;
+    background-color: #fd0;
+  }
 `;
-
-const DbgDisItem = ({ item }) => {
-  const { state: { emulator } } = React.useContext(store);
-  const current = item.address === emulator.cpu.pc;
-  const bindata = item.rawdata.map(x => nes.safehex(x)).join(' ');
-  const mnemonic = (item.instruction && !item.instruction.illegal)
-    ? item.instruction.mnemonic
-    : '.db';
-  const itemRef = React.useRef();
-  React.useLayoutEffect(() => {
-    if (itemRef.current && current) {
-      (itemRef
-        .current
-        .parentElement
-        .scrollTo(0, itemRef.current.scrollHeight - 25));
-    }
-  });
-  return (
-    <li ref={itemRef}>
-      <div style={{ width: 15, float: 'left', clear: 'left' }}>{current ? '>' : '\u00A0'}</div>
-      <div style={{ width: 45, float: 'left' }}>{nes.hex(item.address, 4)}</div>
-      <div style={{ width: 70, float: 'left' }}>{bindata}</div>
-      <div style={{ width: 40, float: 'left' }}>{mnemonic}</div>
-      <div style={{ width: 40, float: 'left' }}>{item.fmtop || ''}</div>
-    </li>
-  );
-};
 
 const DbgDisList = () => {
   const { state, dispatch } = React.useContext(store);
-  const [disassembled, setDisassembled] = React.useState([]);
-  React.useEffect(
-    () => { setDisassembled(state.emulator.disassemble()); },
-    // Dependency list. Won't ever re-disassembly it unless the
-    // cartridge data itself changes
-    [state.emulator.cartridge],
-  );
+  const selectedRow = state
+    .disassembled
+    .findIndex(x => x.address === state.emulator.cpu.pc);
   return (
     <div>
       <button onClick={e => dispatch({ type: 'step' })}>
         ↪
       </button>
       <DbgDisWrap>
-        {disassembled.map(i =>
-          <DbgDisItem
-            id={`dbg-dist-item-${i.address}`}
-            key={`key-${i.address}`}
-            item={i}
-          />)}
+        <List
+          className="dbg-lst"
+          width={246}
+          height={140}
+          rowCount={state.disassembled.length}
+          rowHeight={14}
+          rowRenderer={({ index, key, style }) => {
+            const item = state.disassembled[index];
+            const current = item.address === state.emulator.cpu.pc;
+            const bindata = item.rawdata.map(x => nes.safehex(x)).join(' ');
+            const mnemonic = (item.instruction && !item.instruction.illegal)
+              ? item.instruction.mnemonic
+              : '.db';
+            return (
+              <div key={key} style={style} className={current ? 'dbg-current' : null}>
+                <div style={{ width: 15, float: 'left', clear: 'left' }}>{current ? '>' : '\u00A0'}</div>
+                <div style={{ width: 45, float: 'left' }}>{nes.hex(item.address, 4)}</div>
+                <div style={{ width: 70, float: 'left' }}>{bindata}</div>
+                <div style={{ width: 40, float: 'left' }}>{mnemonic}</div>
+                <div style={{ width: 40, float: 'left' }}>{item.fmtop || ''}</div>
+              </div>
+            );
+          }}
+          scrollToIndex={selectedRow}
+        />
       </DbgDisWrap>
     </div>
   );
 };
 
 const DbgPalletes = styled.div`
-
 `;
 
 const DbgChr = styled.canvas`
   background-color: #fe0;
-  /* width: 256px;
-  * height: 384px; */
   width: 128px;
   height: 128px;
 `;
@@ -156,12 +145,11 @@ function drawPatternTablePixels(canvas, emulator, addr) {
   dctx.imageSmoothingEnabled = false;
   dctx.drawImage(source, 0, 0, width*5.5, height*1.3);
 }
+
 const Debugger = () =>  {
   const { state: { emulator } } = React.useContext(store);
-
   const canvas0Ref = React.useRef();
   const canvas1Ref = React.useRef();
-
   React.useLayoutEffect(() => {
     if (emulator.cartridge && emulator.cartridge.chr && canvas0Ref.current && canvas1Ref.current) {
       drawPatternTablePixels(canvas0Ref.current, emulator, 0);
