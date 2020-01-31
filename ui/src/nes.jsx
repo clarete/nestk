@@ -8,7 +8,7 @@ import * as nes from '../../nes';
 const DbgShell = styled.div`
   /* Sizes & Spacing */
   width: 256px;
-  height: 240px;
+  height: 340px;
   font-size: 10px;
   /* Positioning */
   float: right;
@@ -39,7 +39,7 @@ const DbgRegList = styled.ul`
 
 const DbgDisWrap = styled.ol`
   /* Sizes & Spacing */
-  height: 135px;
+  height: 140px;
   margin-bottom: 10px;
   padding: 0 10px 10px 10px;
   /* Formatting */
@@ -51,15 +51,6 @@ const DbgDisWrap = styled.ol`
   /* Formatting (Chrome) */
   &::-webkit-scrollbar { width: 6px; background-color: #fd0; }
   &::-webkit-scrollbar-thumb { background-color: #fa0; }
-`;
-
-const DbgPalletes = styled.div`
-  padding-left: 25px;
-`;
-
-const DbgChr = styled.canvas`
-  background-color: #fe0;
-  width: 100px;
 `;
 
 const DbgDisItem = ({ item }) => {
@@ -115,8 +106,68 @@ const DbgDisList = () => {
   );
 };
 
+const DbgPalletes = styled.div`
+
+`;
+
+const DbgChr = styled.canvas`
+  background-color: #fe0;
+  /* width: 256px;
+  * height: 384px; */
+  width: 128px;
+  height: 128px;
+`;
+
+const PATTERN_TABLE_COLORS = {
+  0: { r: 0x00, g: 0x00, b: 0x00 },
+  1: { r: 0x14, g: 0x12, b: 0xA7 },
+  2: { r: 0xFE, g: 0xCC, b: 0xC5 },
+  3: { r: 0xB5, g: 0x31, b: 0x20 },
+};
+
+function drawPatternTablePixels(canvas, emulator, addr) {
+  let [x, y, width, height] = [0, 0, 128, 256];
+  const { chr } = emulator.cartridge;
+  const source = document.createElement('canvas');
+  const context = source.getContext('2d');
+  const imagepx = context.createImageData(width, height);
+  const [begin, end, offset] = addr === 0 ? [0, 0x1000, 0] : [0x1000, 0x2000, 0x1000];
+  for (let byte = begin; byte < end; byte += 16) {
+    y = Math.floor((byte - offset) / height) * 4;
+    for (let line = 0; line < 8; line++) {
+      for (let bit = 0; bit < 8; bit++) {
+        const lo = (chr[byte + line + 0] >>> (7-bit));
+        const hi = (chr[byte + line + 8] >>> (7-bit));
+        const co = (lo & 0x1) + ((hi & 0x1) << 1);
+        const [px, py] = [x + bit, y + line];
+        const red = py * (width * 4) + (px * 4);
+        imagepx.data[red + 0] = PATTERN_TABLE_COLORS[co].r;
+        imagepx.data[red + 1] = PATTERN_TABLE_COLORS[co].g;
+        imagepx.data[red + 2] = PATTERN_TABLE_COLORS[co].b;
+        imagepx.data[red + 3] = 0xFF;
+      }
+    }
+    x = (x + 8) % width;
+  }
+
+  /* Draw the image data into the context of the canvas */
+  context.putImageData(imagepx, 0, 0);
+  const dctx = canvas.getContext('2d');
+  dctx.imageSmoothingEnabled = false;
+  dctx.drawImage(source, 0, 0, width*5.5, height*1.3);
+}
 const Debugger = () =>  {
   const { state: { emulator } } = React.useContext(store);
+
+  const canvas0Ref = React.useRef();
+  const canvas1Ref = React.useRef();
+
+  React.useLayoutEffect(() => {
+    if (emulator.cartridge && emulator.cartridge.chr && canvas0Ref.current && canvas1Ref.current) {
+      drawPatternTablePixels(canvas0Ref.current, emulator, 0);
+      drawPatternTablePixels(canvas1Ref.current, emulator, 1);
+    }
+  });
   return (
     <DbgShell>
       {emulator.cartridge && <div>
@@ -131,8 +182,8 @@ const Debugger = () =>  {
         </DbgRegWrap>
         <DbgDisList />
         <DbgPalletes>
-          <DbgChr style={{ marginRight: 2 }}></DbgChr>
-          <DbgChr style={{ marginLeft:  2 }}></DbgChr>
+          <DbgChr ref={canvas0Ref}></DbgChr>
+          <DbgChr ref={canvas1Ref}></DbgChr>
         </DbgPalletes>
       </div>}
     </DbgShell>
@@ -160,8 +211,12 @@ const Screen = () => (
 const CartridgeSlotShell = styled.div`
   /* Size & Spacing */
   padding: 10px;
+  width: 256px;
+  height: 100px;
   /* Alignment */
   text-align: center;
+  /* Formatting */
+  background-color: #222;
 `;
 
 const CartridgeSlot = () => {
