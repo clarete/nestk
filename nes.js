@@ -28,15 +28,15 @@ class CPU6502 {  // 2A03
     Sign:        1 << 7,
   };
   static Interrupt = {
-    None:  0,
+    None: -1,
+    NMI:   0,
     IRQ:   1,
     Reset: 2,
-    NMI:   3,
   };
   static InterruptVectors = {
     NMI:   0xFFFA,
-    RESET: 0xFFFC,
     IRQ:   0xFFFE,
+    RESET: 0xFFFC,
   };
 
   constructor(bus) {
@@ -137,10 +137,16 @@ class CPU6502 {  // 2A03
     }
     // Before each instructio, CPU checks for interrupts and executes
     // its handlers if necessary
-    if (this.int === CPU6502.Interrupt.IRQ &&
-        this.flag(CPU6502.Flags.Interrupt) === 0) this.irq();
-    if (this.int === CPU6502.Interrupt.Reset) this.reset();
-    if (this.int === CPU6502.Interrupt.NMI) this.nmi();
+    switch (this.int) {
+    case CPU6502.Interrupt.Reset:
+    case CPU6502.Interrupt.NMI:
+      this.interrupt();
+      break;
+    case CPU6502.Interrupt.IRQ:
+      if (this.flag(CPU6502.Flags.Interrupt) === 0)
+        this.interrupt();
+      break;
+    }
     // Instruction execution
     const cycles = this.cycles;
     const opcode = this.bus.read(this.pc++);
@@ -538,14 +544,23 @@ class CPU6502 {  // 2A03
   }
 
   // Interrupts
+  interrupt() {
+    const vector = CPU6502.InterruptVectors[this.int];
+    const lo = this.bus.read(vector + 0);
+    const hi = this.bus.read(vector + 1);
+    if (this.int === CPU6502.Interrupt.Reset)
+      this.s -= 3;
+    else {
+      this.push((this.pc >> 8) & 0xFF);
+      this.push(this.pc & 0xFF);
+      this.push(this.p | 0b00110000);
+    }
+    this.p |= CPU6502.Flags.Interrupt;
+    this.pc = (hi << 8) | lo;
+    this.int = CPU6502.Flags.Interrupt.None;
+  }
   requestInterrupt(interrupt) {
     this.int = interrupt;
-  }
-  irq() {
-  }
-  nmi() {
-  }
-  reset() {
   }
 }
 
