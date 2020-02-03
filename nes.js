@@ -681,9 +681,16 @@ class NES {
       : 0x8000;
     return dis6502code(this.cartridge.prg, offset);
   }
-
   step() {
-    this.cpu.step();
+    if (this.ppu.nmi) {
+      this.cpu.requestInterrupt(CPU6502.Interrupt.NMI);
+      this.ppu.nmi = false;
+    }
+    const cpuCycles = this.cpu.step();
+    for (let i = 0; i < cpuCycles * 3; i++)
+      this.ppu.step();
+
+    this.ppu.nmi = false;
   }
 }
 
@@ -762,8 +769,8 @@ class PPU2c02 {
     EmphasisBlue:         1 << 7, // Bit7  Color Emphasis        (0=Normal, 1=Emphasis)
     EmphasisGreen:        1 << 6, // Bit6  Color Emphasis        (0=Normal, 1=Emphasis)
     EmphasisRed:          1 << 5, // Bit5  Color Emphasis        (0=Normal, 1=Emphasis)
-    SpriteVisibility:     1 << 4, // Bit4  Sprite Visibility     (0=Not displayed, 1=Displayed)
-    BackgroundVisibility: 1 << 3, // Bit3  Background Visibility (0=Not displayed, 1=Displayed)
+    SpriteVisibile:       1 << 4, // Bit4  Sprite Visibility     (0=Not displayed, 1=Displayed)
+    BackgroundVisibile:   1 << 3, // Bit3  Background Visibility (0=Not displayed, 1=Displayed)
     SpriteClipping:       1 << 2, // Bit2  Sprite Clipping       (0=Hide in left 8-pixel column, 1=No clipping)
     BackgroundClipping:   1 << 1, // Bit1  Background Clipping   (0=Hide in left 8-pixel column, 1=No clipping)
     MonochromeMode:       1 << 0, // Bit0  Monochrome Mode       (0=Color, 1=Monochrome)  (see Palettes chapter)
@@ -771,51 +778,216 @@ class PPU2c02 {
   static StatusFlags = {
     VBlank:         1 << 7, // Bit7   VBlank Flag    (1=VBlank)
     SpriteZeroHit:  1 << 6, // Bit6   Sprite 0 Hit   (1=Background-to-Sprite0 collision)
-    LostSprites:    1 << 5, // Bit5   Lost Sprites   (1=More than 8 sprites in 1 scanline)
+    SpriteOverflow: 1 << 5, // Bit5   Lost Sprites   (1=More than 8 sprites in 1 scanline)
                             // Bit4-0 Not used       (Undefined garbage)
   };
   static Registers = {
-    Ctrl:       0x2000,
-    Mask:       0x2001,
-    Status:     0x2002,
-    SPRRamAddr: 0x2003,
+    Ctrl:      0x2000,
+    Mask:      0x2001,
+    Status:    0x2002,
+    OAMAddr:   0x2003,
+    OAMData:   0x2004,
+    Scroll:    0x2005,
+    Addr:      0x2006,
+    Data:      0x2007,
+    OAMDMA:    0x4014,
   };
 
   constructor(bus) {
     this.cycle = 0;
     this.scanline = 0;
-    this.dot = 0;
     this.mirroring = MirroringModes.Vertical;
     this.bus = bus;
+    this.nmi = false;           // Signal request for CPU
 
     // Registers
-    this.ctrl1 = 0x0;
-    this.ctrl2 = 0x0;
-    this.status = 0x0;
-    this.sprRamAddr = 0x0;
+    this.ctrl = 0;
+    this.mask = 0;
+    this.status = 0;
+    this.oamaddr = 0;
+    this.oamdata = 0;
+    this.scroll = 0;
+    this.addr = 0;
+    this.data = 0;
+    this.dataBuffer = 0;
+
+    // Memory
+    this.vram = new Int8Array(0x3FFF);
+    this.ntRam = new Int8Array(0x4000);
+    this.paletteRam = new Int8Array(0x20);
+    this.oamRam = new Int8Array(0x100);
+
+    // Loopy's registers
+    this.v = 0;  // VRam Address
+    this.t = 0;  // Temporary VRam Address
+    this.x = 0;  // Fine X
+    this.w = 0;  // Write Latch
+
+    // Stuff
+    this.ntByte = 0;
+    this.atByte = 0;
+  }
+  reset() {
+    this.cycle = 340;
+    this.scanline = 240;
+    this.frameCount = 0;
+    this.ctrl = 0;
+    this.mask = 0;
+    this.oamAddr = 0;
   }
   readRegister(index) {
     switch (index) {
-    case PPU2c02.Registers.Status: return this.status;
+    case PPU2c02.Registers.Status:      // $2002 read
+      const value = this.status;
+      this.w = 0;                       // w:                  = 0
+      this.status &= ~PPU2c02.StatusFlags.VBlank;
+      return value & 0xE0;
+
+    case PPU2c02.Registers.OAMData:
+      return this.oamRam[this.oamAddr];
+
+    case PPU2c02.Registers.Data:
+      const buffered = this.dataBuffer;
+      this.dataBuffer = this.bus.read(this.v);
+      this.v += (this.ctrl & PPU2c02.CTRLFlags.VRAMIncrement) ? 32 : 1;
+      return (this.v <= 0x3EFF)
+        ? buffered              // Dummy read takes two cycles
+        : this.dataBuffer;      // palette memory takes one cycle
     }
+
     throw new Error(`Invalid PPU Register '${index}'`);
   }
   writeRegister(index, value) {
     switch (index) {
-    case PPU2c02.Registers.Ctrl: this.ctrl = value; break;
-    case PPU2c02.Registers.Mask: this.mask = value; break;
-    case PPU2c02.Registers.SPRRamAddr: this.sprRamAddr = value; break;
+    case PPU2c02.Registers.Ctrl:          // $2000 write
+      this.ctrl = value;
+      this.t |= ((this.ctrl & 0x3) << 2); // t: ...BA.. ........ = d: ......BA
+      break;
+
+    case PPU2c02.Registers.Mask:
+      this.mask = value;
+      break;
+
+    case PPU2c02.Registers.OAMAddr:
+      this.oamAddr = value;
+      break;
+
+    case PPU2c02.Registers.OAMData:
+      this.oamRam[this.oamAddr++] = value;
+      break;
+
+    case PPU2c02.Registers.Scroll:
+      if (this.w === 0) {       // $2005 first write (w is 0)
+        this.t |= value & ~0x7; // t: ....... ...HGFED = d: HGFED...
+        this.x = value & 0x7;   // x:              CBA = d: .....CBA
+        this.w = 1;             // w:                  = 1
+      } else {                            // $2005 second write (w is 1)
+        this.t |= ((value & 0xC0) <<  2); // t: CBA..HG FED..... = d: HGFEDCBA
+        this.t |= ((value & 0x07) << 12); //    ^^^
+        this.t |= ((value & 0x38) <<  2); //            ^^^
+        this.w = 0;                       // w:                  = 0
+      }
+      break;
+
+    case PPU2c02.Registers.Addr:
+      if (this.w === 0) {                // $2006 first write (w is 0)
+        this.t |= ((value & 0x3F) << 8); // t: .FEDCBA ........ = d: ..FEDCBA
+        this.t &= 0x7FFF;                // t: X...... ........ = 0
+        this.w = 1;                      // w:                  = 1
+      } else {                    // $2006 second write (w is 1)
+        this.t |= value & 0xFF;   // t: ....... HGFEDCBA = d: HGFEDCBA
+        this.v = this.t;          // v                   = t
+        this.w = 0;               // w:                  = 0
+      }
+      break;
+
+    case PPU2c02.Registers.Data:
+      this.bus.write(this.v, value);
+      this.v += (this.ctrl & PPU2c02.CTRLFlags.VRAMIncrement) ? 32 : 1;
+      break;
     }
   }
-  nmi() {
+
+  // ---- Address Methods ----
+
+  addrNametable() {
+    return 0x2000 | (this.v & 0x0FFF);
   }
-  preScanline() {
+  addrAttributte() {
   }
-  scanline() {
+  addrBackground() {
+  }
+  addrSprite() {
+  }
+
+  // ---- Action Methods ----
+
+  actionVBlankStart() {
+    this.status |= PPU2c02.StatusFlags.VBlank;
+    if (this.ctrl & PPU2c02.CTRLFlags.EnableNMI)
+      this.nmi = true;
+  }
+  actionVBlankEnd() {
+    this.status &= ~PPU2c02.StatusFlags.VBlank;
+    this.status &= ~PPU2c02.StatusFlags.SpriteZeroHit;
+    this.status &= ~PPU2c02.StatusFlags.SpriteOverflow;
+  }
+  actionReadVRAM() {
+    let nt, at, bgLo, bgHi;
+    switch (this.cycle % 8) {
+    case 1: this.addrBuffer = this.addrNametable(); break;
+    case 2: nt = this.bus.read(this.addrBuffer); break;
+    case 3: this.addrBuffer = this.addrAttributte(); break;
+    case 4: at = this.bus.read(this.addrBuffer); break;
+    case 5: this.addrBuffer = this.addrBackground(); break;
+    case 6: bgLo = this.bus.read(this.addrBuffer); break;
+    case 7: this.addrBuffer += 8; break;
+    case 0: bgHi = this.bus.read(this.addrBuffer); break;
+    }
+    console.log('read-vram', (this.cycle%8), nt, at, bgLo, bgHi);
+  }
+
+  // ---- Scanline Methods ----
+
+  scanlineNMI() {
+    if (this.cycle === 1) {
+      this.status |= PPU2c02.StatusFlags.VBlank;
+      if (this.ctrl & PPU2c02.CTRLFlags.EnableNMI)
+        this.nmi = true;
+    }
+  }
+  scanlinePost() {
+    if (this.cycle === 0) {
+      // new frame
+      // this.frameCount++;
+    }
+  }
+  scanlineStep(pre=false) {
+    if (pre && this.cycle === 1) {
+      this.actionVBlankEnd();
+    }
+    if (this.cycle > 0) {
+      // this.actionReadVRAM();
+    }
   }
   step() {
+    switch (this.scanline) {
+    case between(this.scanline, 0, 239): this.scanlineStep(); break;
+    case 240: this.scanlinePost(); break;
+    case 241: this.scanlineNMI(); break;
+    case 261: this.scanlineStep(true); break;
+    }
+
+    if (this.cycle++ === 341) {
+      this.cycle = 0;
+      if (this.scanline++ === 261) {
+        this.scanline = 0;
+      }
+    }
   }
 }
+
+const between = (v, a, b) => v >= a && v <= b;
 
 class Instruction {
   constructor(mnemonic, opcode, am, size, cycles, checkPageCross, illegal) {
