@@ -82,8 +82,6 @@ class CPU6502 {  // 2A03
         // Read page from the next byte
         : ((this.bus.read(operand + 1) << 8) |
            (this.bus.read(operand) & 0xFF)) & 0xFFFF;
-      if (this._crosspage(this.pc, value))
-        this.cycles += 2;
       return value;
     };
     switch (instr.addressingMode) {
@@ -113,17 +111,16 @@ class CPU6502 {  // 2A03
     }
   }
 
-  instructionCycles(instruction) {
+  instructionCycles(instruction, addr) {
     this.cycles += instruction.cycles;
-
     if (instruction.checkPageCross) {
       switch (instruction.addressingMode) {
       case AddrModes.AbsoluteX:
-        this.cycles += this._crosspage(this.pc, this.pc - this.x) ? 1 : 0;
+        this.cycles += this._crosspage(addr, addr - this.x) ? 1 : 0;
         break;
       case AddrModes.AbsoluteY:
       case AddrModes.IndirectY:
-        this.cycles += this._crosspage(this.pc, this.pc - this.y) ? 1 : 0;
+        this.cycles += this._crosspage(addr, addr - this.y) ? 1 : 0;
         break;
       }
     }
@@ -157,7 +154,7 @@ class CPU6502 {  // 2A03
     if (!executor)
       throw new Error(`No executor for ${instruction}`);
     const operand = this.operand(instruction);
-    this.instructionCycles(instruction);
+    this.instructionCycles(instruction, operand);
     executor.bind(this)(operand, instruction);
     return this.cycles - cycles;
   }
@@ -609,6 +606,7 @@ class Joypad {
 
 class NES {
   constructor() {
+    this.masterClock = 0;
     this.cpumem = new Int16Array(0x1FFF);
     this.cpubus = new MemoryBus();
     this.ppubus = new MemoryBus();
@@ -682,15 +680,14 @@ class NES {
     return dis6502code(this.cartridge.prg, offset);
   }
   step() {
+    const cpuCycles = this.cpu.step();
+    for (let i = 0; i < cpuCycles * 3; i++) {
+      this.ppu.step();
+    }
     if (this.ppu.nmi) {
       this.cpu.requestInterrupt(CPU6502.Interrupt.NMI);
       this.ppu.nmi = false;
     }
-    const cpuCycles = this.cpu.step();
-    for (let i = 0; i < cpuCycles * 3; i++)
-      this.ppu.step();
-
-    this.ppu.nmi = false;
   }
 }
 
@@ -978,10 +975,10 @@ class PPU2c02 {
     case 261: this.scanlineStep(true); break;
     }
 
-    if (this.cycle++ === 341) {
+    if (++this.cycle > 340) {
       this.cycle = 0;
-      if (this.scanline++ === 261) {
-        this.scanline = 0;
+      if (++this.scanline > 260) {
+        this.scanline = -1;
       }
     }
   }

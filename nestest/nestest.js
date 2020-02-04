@@ -1,18 +1,16 @@
 const fs = require('fs');
 const nes = require('../nes');
 
-const mem = new Int16Array(0xFFFF);
-const bus = new nes.MemoryBus();
-const cpu = new nes.CPU6502(bus);
-const crt = nes.Cartridge.fromRomData(fs.readFileSync('./nestest.nes'));
-
+const crt = fs.readFileSync('./nestest.nes');
+const emulator = new nes.NES(); emulator.insertCartridge(crt);
+const cpu = emulator.cpu;
 const pc = cpu.pc = 0xC000;
 const end = pc + (0xFFFF - 0x8000);
-bus.handleGet(pc, end, addr => crt.prg[addr - pc]);
-bus.handleGet(0x0000, 0xFFFF, addr => mem[addr]);
-bus.handlePut(0x0000, 0xFFFF, (addr, value) => mem[addr] = value);
 
-let remaining = crt.prg.length;
+emulator.ppu.scanline = 241;
+emulator.ppu.cycle = 0;
+
+let remaining = emulator.cartridge.prg.length;
 const hex = nes.hex;
 
 const formatParameter = (instruction) => {
@@ -67,7 +65,7 @@ const formatParameter = (instruction) => {
 };
 
 const red = s => `\x1b[31m${s}\x1b[0m`;
-const green = s => `\x1b[33m${s}\x1b[0m`;
+const yellow = s => `\x1b[33m${s}\x1b[0m`;
 
 const logLines = fs
   .readFileSync('./nestest.log')
@@ -75,13 +73,9 @@ const logLines = fs
   .split('\n');
 
 function diff(a, b) {
-  // Ignore cycles & scanlines for now
-  const [aa] = a.split('CYC');
-  const [bb] = b.split('CYC');
-
-  if (aa !== bb) {
+  if (a !== b) {
     console.log(red(a));
-    console.log(green(b));
+    console.log(yellow(b));
   } else {
     console.log(a);
   }
@@ -110,8 +104,8 @@ while (remaining-- > 0) {
     `Y:${hex(cpu.y)}`,
     `P:${hex(cpu.p)}`,
     `SP:${hex(cpu.s)}`,
-    `CYC:${String(cpu.cycles * 3 % 341).padStart(3, ' ')}`,
-    `SL:${0}`
+    `CYC:${String(emulator.ppu.cycle).padStart(3, ' ')}`,
+    `SL:${emulator.ppu.scanline}`
   ].join(' ');
 
   // Compare and print out the stuff
@@ -120,5 +114,5 @@ while (remaining-- > 0) {
   diff(logmsg, line);
 
   // Run the one instruction on the CPU
-  cpu.step();
+  emulator.step();
 }
