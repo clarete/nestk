@@ -846,10 +846,11 @@ class PPU2c02 {
     case PPU2c02.Registers.Data:
       const buffered = this.dataBuffer;
       this.dataBuffer = this.bus.read(this.v);
-      this.v += (this.ctrl & PPU2c02.CTRLFlags.VRAMIncrement) ? 32 : 1;
-      return (this.v <= 0x3EFF)
+      const output = (this.v <= 0x3EFF)
         ? buffered              // Dummy read takes two cycles
         : this.dataBuffer;      // palette memory takes one cycle
+      this.v += (this.ctrl & PPU2c02.CTRLFlags.VRAMIncrement) ? 32 : 1;
+      return output;
     }
 
     throw new Error(`Invalid PPU Register '${index}'`);
