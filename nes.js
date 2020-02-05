@@ -875,15 +875,21 @@ class PPU2c02 {
       break;
 
     case PPU2c02.Registers.Scroll:
-      if (this.w === 0) {       // $2005 first write (w is 0)
-        this.t |= value & ~0x7; // t: ....... ...HGFED = d: HGFED...
-        this.x = value & 0x7;   // x:              CBA = d: .....CBA
-        this.w = 1;             // w:                  = 1
-      } else {                            // $2005 second write (w is 1)
-        this.t |= ((value & 0xC0) <<  2); // t: CBA..HG FED..... = d: HGFEDCBA
-        this.t |= ((value & 0x07) << 12); //    ^^^
-        this.t |= ((value & 0x38) <<  2); //            ^^^
-        this.w = 0;                       // w:                  = 0
+      if (this.w === 0) {
+        // $2005 first write (w is 0)
+        // t: ....... ...HGFED = d: HGFED...
+        // x:              CBA = d: .....CBA
+        // w:                  = 1
+        this.t = (this.t & 0xFFE0) | (value >> 3);
+        this.x = value & 0x7;
+        this.w = 1;
+      } else {
+        // $2005 second write (w is 1)
+        // t: CBA..HG FED..... = d: HGFEDCBA
+        // w:                  = 0
+        this.t = (this.t & 0x8FFF) | ((value & 0x07) << 12);
+	this.t = (this.t & 0xFC1F) | ((value & 0xF8) << 2);
+        this.w = 0;
       }
       break;
 
