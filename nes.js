@@ -34,9 +34,9 @@ class CPU6502 {  // 2A03
     Reset: 2,
   };
   static InterruptVectors = {
-    NMI:   0xFFFA,
-    IRQ:   0xFFFE,
-    RESET: 0xFFFC,
+    [CPU6502.Interrupt.NMI]:   0xFFFA,
+    [CPU6502.Interrupt.IRQ]:   0xFFFE,
+    [CPU6502.Interrupt.RESET]: 0xFFFC,
   };
 
   constructor(bus) {
@@ -54,7 +54,7 @@ class CPU6502 {  // 2A03
   }
 
   resetPC() {
-    const addr = CPU6502.InterruptVectors.RESET;
+    const addr = CPU6502.InterruptVectors[CPU6502.Interrupt.RESET];
     const lo = this.bus.read(addr + 0);
     const hi = this.bus.read(addr + 1);
     this.pc = (hi << 8) | lo;
@@ -570,7 +570,7 @@ class MemoryBus {
   findCallback(where, addr) {
     for (const [filter, callback] of where)
       if (filter(addr)) return callback;
-    throw new Error(`Invalid address ${addr.toString(16)}`);
+    throw new Error(`Invalid address $${hex(addr)}`);
   }
 }
 
