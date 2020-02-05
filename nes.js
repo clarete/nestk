@@ -888,13 +888,13 @@ class PPU2c02 {
 
     case PPU2c02.Registers.Addr:
       if (this.w === 0) {                // $2006 first write (w is 0)
-        this.t |= ((value & 0x3F) << 8); // t: .FEDCBA ........ = d: ..FEDCBA
-        this.t &= 0x7FFF;                // t: X...... ........ = 0
+        this.t = (this.t & 0x80FF)       // t: X...... ........ = 0
+          | ((value & 0x3F) << 8);       // t: .FEDCBA ........ = d: ..FEDCBA
         this.w = 1;                      // w:                  = 1
-      } else {                    // $2006 second write (w is 1)
-        this.t |= value & 0xFF;   // t: ....... HGFEDCBA = d: HGFEDCBA
-        this.v = this.t;          // v                   = t
-        this.w = 0;               // w:                  = 0
+      } else {                               // $2006 second write (w is 1)
+        this.t = (this.t & 0xFF00) | value;  // t: ....... HGFEDCBA = d: HGFEDCBA
+        this.v = this.t;                     // v                   = t
+        this.w = 0;                          // w:                  = 0
       }
       break;
 
