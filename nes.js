@@ -105,7 +105,7 @@ class CPU6502 {  // 2A03
       return addr2;
     } case AddrModes.Relative: {
       const offset = addr8();
-      return ((this.pc & 0xFF00) | (this.pc & 0xFF) + (offset << 24 >> 24));
+      return offset < 0x80 ? offset + this.pc : offset + (this.pc - 0x100);
     } default:
       throw new Error(`Invalid Address Mode ${instr.addressingMode}: ${instr}`);
     }
@@ -725,7 +725,7 @@ function dis6502code(code, offset) {
       break;
     }
     let fmtop;
-    const fixrl = rl => ((curraddr() & 0xFF00) | (curraddr() & 0xFF) + (rl << 24 >> 24));
+    const fixrl = rl => rl < 0x80 ? rl + curraddr() : rl + (curraddr() - 0x100);
     switch (instruction.addressingMode) {
     case AddrModes.Implied:     fmtop = '';                            break;
     case AddrModes.Immediate:   fmtop = `#$${hex(operand)}`;           break;
