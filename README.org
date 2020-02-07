@@ -1,0 +1,129 @@
+* NES Emulator
+
+  Without the amazing reverse engineering work that people have done
+  out there, especially the body of knowledge available at the [[https://wiki.nesdev.com/][NesDev
+  Wiki]], would have not been able to have so much fun doing this NES
+  stuff.  Thank you, all NES hackers out there that have recorded
+  YouTube videos, publishing tutorials, blog posts and sharing what
+  they've got so far. It's work looking at the Reference where I list
+  all the stuff that I consumed (and remember to take a note) while
+  hacking on it.
+
+  Fun stuff. This is what we've got so far on the API side:
+
+** 6502 Toy Assembler
+
+   To start things off, I decided to try to build a little assembler
+   in order to understand a bit more how the 6502 instruction set and
+   addressing modes worked.  The feature set is unfortunately
+   currently very limited, but the ground work is there and besides
+   better handling for labels, all the other missing features are
+   mostly nice to have, but not essential, which might allow this
+   little toy to become a useful tool some day. Cheers to the
+   dreamers.
+
+*** Features
+
+   * ~type ASMCode = Array<['instruction'|'label', string, AddrModes, string | null]>~
+
+   * ~parse6502asm(s: string): ASMCode~:
+
+     parse an 6502 assembly program into an array of arrays of the
+     following shape:
+
+     #+begin_src javascript
+     >>> parse6502asm('lda #$ff')
+     [['instruction', 'lda', AddrModes.Immediate, 0xff]]
+     #+end_src
+
+     The shape of the internal array is
+
+   * ~[LineType, Mnemonic, AddrMode, Operand]~ where
+
+     * ~LineType~ is ~'instruction' | 'label'~
+     * ~Mnemonic~ is one of the 56 instructions of the 6502 /ISA/
+     * ~AddrMode~ is one of the 13 Addressing Modes of the 6502
+     * ~Operand~ is either a label, an address, or a literal number
+
+   * ~asm6502code(code: ASMCode): Buffer~:
+
+     Take the code produced by ~parse6502asm~ and assemble that into
+     its binary representation within a buffer and return the buffer
+     full of code that can be executed by a 6502 CPU.
+
+*** TODO List (Sorted by difficulty)
+
+    * [ ] Binary Literals (e.g.: ~#%11110001~)
+    * [ ] Directives for assembling the header (~.ines*~)
+    * [ ] Directives for including binary files (~.incbin~)
+    * [ ] Directives defining banks, words (~.bank~, ~.org~, ~.dw~)
+    * [ ] Better handling for labels. Right now it's just keeping all
+      addresses of where labels were declared within a hash table and
+      patching them up on a second pass. Not sure if that's how it
+      should be done.
+
+** MOS 6502
+
+   The ~CPU6502~ class is a small guy that implements the 6502
+   instruction set used in the main chip of the NES. The instructions
+   themselves aren't that complicated. Most of the weirdness came up
+   while implementing the addressing modes. Here's the gist of what
+   it's doing:
+
+   + The 56 instructions can receive either no operand, a one byte
+     operand or a two byte operand.
+   + The 13 different types of "Addressing Modes" define how
+     operands are passed to instruction handlers.
+   + There is one general purpose register [A]ccumulator that is
+     manipulated by various instructions, mostly math stuff. Like
+     addition, subtraction, bit shifting, etc.
+   + There are two index registers X and Y also available via
+     different instructions
+   + Memory mapping is how the CPU talks to all other hardware.
+
+*** Some API
+
+   * ~step()~: Cranks the CPU to read the next instruction. Will check
+     for interrupts beforehand, executing their handler if there's
+     any. Then it gets the operand from the ~bytecode~ taking into
+     account the addressing mode. Then, finally it passes the operand
+     to the handler of the instruction, retrieved from a table indexed
+     with the ~opcode~.
+   * ~requestInterrupt()~: That's how the external world signals to
+     the CPU that it has gotten a new interrupt to handle.  It's used
+     by the ~PPU~ and, in the future, by the ~APU~ to request the CPU
+     to execute callbacks the game programmers create.
+
+** Picture Processing Unit
+
+   The breezy and smooth ride I was having while implementing the MOS
+   6502 instruction set became an 8 bit thunderstorm when I started
+   looking at how to implement the Picture Processing Unit
+   a.k.a. ~PPU~.
+
+** The Console
+
+   All the components mentioned so far need to be put to work
+   together.  That's the first responsibility of the ~NES~ class. To
+   instantiate the ~CPU~, the ~PPU~, the ~APU~ and to connect them all
+   to a memory bus, with the appropriate memory mapping.  And it's all
+   done automatically, there's no configuration needed for this.
+
+   The second thing the ~NES~ class needs to do is to take adapters
+   for the video, audio & controller that integrate with a UI library.
+   There's an ongoing effort to build a Web UI using React and
+   rendering on an HTML5 canvas element but the ~NES~ class has no
+   dependencies on it, making it possible to build, for example, an
+   SDL based UI.
+
+*** Some API
+
+   * ~reset()~: Resets the master clock, the CPU & the PPU.
+   * ~plugController1()~: Takes an instance of the ~Joypad~ class and
+     attach it to the console's memory Bus.
+   * ~plugScreen()~: Takes an instance of the ~VideoOutput~ class and
+     attach it to the output of the PPU.
+   * ~disassemble()~: Return the list of instructions declared
+     linearly in the ~bytecode~. That's useful for building debuggers
+     that want to show the text representation of what the CPU is
+     working on while it happens.
