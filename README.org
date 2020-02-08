@@ -127,3 +127,24 @@
      linearly in the ~bytecode~. That's useful for building debuggers
      that want to show the text representation of what the CPU is
      working on while it happens.
+
+** References
+
+   These are some relevant resources I used while putting this
+   together:
+
+   - https://wiki.nesdev.com (most used resource by far)
+   - http://www.6502.org/
+   - https://skilldrick.github.io/easy6502/
+   - http://users.telenet.be/kim1-6502/6502/pm-apndx.html#b
+   - https://www.masswerk.at/6502/6502_instruction_set.html
+   - http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
+   - https://problemkaputt.de/everynes.htm
+   - https://fms.komkon.org/EMUL8/NES.html
+   - http://www.eecg.toronto.edu/~pc/courses/432/2008/projects/ppu.pdf
+   - http://www.dustmop.io/blog/2015/04/28/nes-graphics-part-1/#chr-encoding
+   - https://erikonarheim.com/posts/nes-sprite-editor
+   - https://www.youtube.com/watch?v=fWqBmmPQP40
+   - https://www.youtube.com/watch?v=ar9WRwCiSr0
+   - https://www.youtube.com/watch?v=8XmxKPJDGU0
+   - https://www.youtube.com/channel/UCIp73jJFLgicEywj1e7e-1A

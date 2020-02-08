@@ -1,10 +1,5 @@
 /*
 
- Thanks to
- - https://nesdev.com
- - https://problemkaputt.de/everynes.htm
- - https://fms.komkon.org/EMUL8/NES.html
-
  * [x] Addressing Modes
  * [x] Instructions
  * [ ] Interrupts
