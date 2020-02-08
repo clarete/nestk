@@ -31,6 +31,9 @@ module.exports = {
     "react": "React",
     "react-dom": "ReactDOM"
   },
+  optimization: {
+    minimize: false
+  },
   output: {
     path: path.resolve(__dirname, 'dist'),
     publicPath: '/dist/',
