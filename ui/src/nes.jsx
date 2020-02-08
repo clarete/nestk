@@ -115,18 +115,17 @@ const PATTERN_TABLE_COLORS = {
 };
 
 function drawPatternTablePixels(canvas, emulator, addr) {
-  let [x, y, width, height] = [0, 0, 128, 256];
-  const { chr } = emulator.cartridge;
+  let [x, y, width, height] = [0, 0, 128, 128];
   const source = document.createElement('canvas');
   const context = source.getContext('2d');
   const imagepx = context.createImageData(width, height);
   const [begin, end, offset] = addr === 0 ? [0, 0x1000, 0] : [0x1000, 0x2000, 0x1000];
   for (let byte = begin; byte < end; byte += 16) {
-    y = Math.floor((byte - offset) / height) * 4;
+    y = Math.floor((byte - offset) / (height * 2)) * 8;
     for (let line = 0; line < 8; line++) {
       for (let bit = 0; bit < 8; bit++) {
-        const lo = (chr[byte + line + 0] >>> (7-bit));
-        const hi = (chr[byte + line + 8] >>> (7-bit));
+        const lo = (emulator.ppu.bus.read(byte + line + 0) >>> (7-bit));
+        const hi = (emulator.ppu.bus.read(byte + line + 8) >>> (7-bit));
         const co = (lo & 0x1) + ((hi & 0x1) << 1);
         const [px, py] = [x + bit, y + line];
         const red = py * (width * 4) + (px * 4);
