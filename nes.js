@@ -622,8 +622,8 @@ class NES {
     this.cpubus.handleGet(0x0000, 0x07FF, addr => this.cpumem[addr & 0x07FF]);
     this.cpubus.handlePut(0x0000, 0x07FF, (addr, val) => this.cpumem[addr & 0x07FF] = val);
     // Wire PPU to CPU bus
-    this.cpubus.handleGet(0x2000, 0x2007, addr => this.ppu.readRegister(addr & 0x7));
-    this.cpubus.handlePut(0x2000, 0x2007, (addr, val) => this.ppu.writeRegister(addr & 0x7, val));
+    this.cpubus.handleGet(0x2000, 0x3FFF, addr => this.ppu.readRegister(addr & 0x2007));
+    this.cpubus.handlePut(0x2000, 0x3FFF, (addr, val) => this.ppu.writeRegister(addr & 0x2007, val));
     // Wire CPU to cartridge
     this.cpubus.handleGet(0x6000, 0x7FFF, addr => this.cartridge.chr[(addr & 0x7FFF) - 0x6000]);
     this.cpubus.handleGet(0x8000, 0xFFFF, addr => this.cartridge.readprg(addr));
@@ -631,8 +631,11 @@ class NES {
     this.cpubus.handleGet(0x4000, 0x4017, addr => (addr === 0x4016) ? this.jports[0].state() & 0x1 : 0x0);
     this.cpubus.handlePut(0x4000, 0x401F, (addr, val) => {
       switch (addr) {
-      case 0x4014: this.ppu.dma(val); break; // oam dma
       case 0x4016: this.jports[0].strobe(val === 1); break;
+      case 0x4014: // oam dma
+        this.ppu.dma(val, x => this.cpubus.read(x));
+        this.cpu.delay += this.cpu.delay % 2 === 0 ? 512 : 513;
+        break;
       }
     });
 
@@ -650,21 +653,35 @@ class NES {
     // Wire PPU to cartridge (will blow up if insertCartridge hasn't been called)
     this.ppubus.handleGet(0x0000, 0x0FFF, addr => this.cartridge.chr[addr & 0x0FFF]);
     this.ppubus.handleGet(0x1000, 0x1FFF, addr => this.cartridge.chr[addr & 0x1FFF]);
+
+    // Wire PPU to its VRAM memory
+    this.ppubus.handleGet(0x2000, 0x3EFF, addr => this.ppu.vram[addr - 0x2000]);
+    this.ppubus.handlePut(0x2000, 0x3EFF, (addr, val) => this.ppu.vram[addr - 0x2000] = val);
+
+    // Wire PPU to the palette ram
+    const mirroraddr = a => [0x10, 0x14, 0x18, 0x1C].includes(a) ? a & 0xF : a;
+    this.ppubus.handleGet(0x3F00, 0x3FFF, addr => this.ppu.paletteRam[mirroraddr(addr & 0x1F)]);
+    this.ppubus.handlePut(0x3F00, 0x3FFF, (addr, val) => this.ppu.paletteRam[mirroraddr(addr & 0x1F)] = val);
   }
   plugScreen() {
-    return this;
   }
   plugController1(joypad) {
     this.jports.push(joypad);
-    return this;
   }
   insertCartridge(cartridgeData) {
     this.cartridge = Cartridge.fromRomData(cartridgeData);
     this.cpu.resetPC();
-    return this;
+    this.ppu.reset();
+  }
+  reset() {
+    this.masterClock = -2;
+    this.ppu.reset();
+    this.cpu.reset();
   }
   powerUp() {
-    return this;
+    while (true) {
+      this.step();
+    }
   }
 
   disassemble() {
@@ -751,8 +768,8 @@ class PPU2c02 {
     EnableNMI:       1 << 7,  // Execute NMI on VBlank             (0=Disabled, 1=Enabled)
     Unused:          1 << 6,  // PPU Master/Slave Selection        (0=Master, 1=Slave) (Not used in NES)
     SpriteSize:      1 << 5,  // Sprite Size                       (0=8x8, 1=8x16)
-    PatternTable1:   1 << 4,  // Pattern Table Address Background  (0=VRAM 0000h, 1=VRAM 1000h)
-    PatternTable2:   1 << 3,  // Pattern Table Address 8x8 Sprites (0=VRAM 0000h, 1=VRAM 1000h)
+    PatternTableBG:  1 << 4,  // Pattern Table Address Background  (0=VRAM 0000h, 1=VRAM 1000h)
+    PatternTableSPR: 1 << 3,  // Pattern Table Address 8x8 Sprites (0=VRAM 0000h, 1=VRAM 1000h)
     VRAMIncrement:   1 << 2,  // Port 2007h VRAM Address Increment (0=Increment by 1, 1=Increment by 32)
     NametableY:      1 << 1,  // Bit1-0 Name Table Scroll Address  (0-3=VRAM 2000h,2400h,2800h,2C00h)
     NametableX:      1 << 0,  // (That is, Bit0=Horizontal Scroll by 256, Bit1=Vertical Scroll by 240)
@@ -761,8 +778,8 @@ class PPU2c02 {
     EmphasisBlue:         1 << 7, // Bit7  Color Emphasis        (0=Normal, 1=Emphasis)
     EmphasisGreen:        1 << 6, // Bit6  Color Emphasis        (0=Normal, 1=Emphasis)
     EmphasisRed:          1 << 5, // Bit5  Color Emphasis        (0=Normal, 1=Emphasis)
-    SpriteVisibile:       1 << 4, // Bit4  Sprite Visibility     (0=Not displayed, 1=Displayed)
-    BackgroundVisibile:   1 << 3, // Bit3  Background Visibility (0=Not displayed, 1=Displayed)
+    SpriteVisible:        1 << 4, // Bit4  Sprite Visibility     (0=Not displayed, 1=Displayed)
+    BackgroundVisible:    1 << 3, // Bit3  Background Visibility (0=Not displayed, 1=Displayed)
     SpriteClipping:       1 << 2, // Bit2  Sprite Clipping       (0=Hide in left 8-pixel column, 1=No clipping)
     BackgroundClipping:   1 << 1, // Bit1  Background Clipping   (0=Hide in left 8-pixel column, 1=No clipping)
     MonochromeMode:       1 << 0, // Bit0  Monochrome Mode       (0=Color, 1=Monochrome)  (see Palettes chapter)
@@ -784,14 +801,12 @@ class PPU2c02 {
     Data:      0x2007,
     OAMDMA:    0x4014,
   };
-
   constructor(bus) {
     this.cycle = 0;
     this.scanline = 0;
     this.mirroring = MirroringModes.Vertical;
     this.bus = bus;
     this.nmi = false;           // Signal request for CPU
-
     // Registers
     this.ctrl = 0;
     this.mask = 0;
@@ -799,25 +814,42 @@ class PPU2c02 {
     this.oamaddr = 0;
     this.oamdata = 0;
     this.scroll = 0;
-    this.addr = 0;
-    this.data = 0;
-    this.dataBuffer = 0;
-
-    // Memory
-    this.vram = new Int8Array(0x3FFF);
-    this.ntRam = new Int8Array(0x4000);
-    this.paletteRam = new Int8Array(0x20);
-    this.oamRam = new Int8Array(0x100);
-
-    // Loopy's registers
+    // Loopy's registers: VRAM address, temporary VRAM address, fine X
+    // scroll, and first/second write toggle - This controls the
+    // addresses that the PPU reads during background rendering. See
+    // PPU scrolling.
     this.v = 0;  // VRam Address
     this.t = 0;  // Temporary VRam Address
     this.x = 0;  // Fine X
     this.w = 0;  // Write Latch
-
-    // Stuff
-    this.ntByte = 0;
-    this.atByte = 0;
+    // Memory
+    this.vram = new Int8Array(0x4000);
+    this.paletteRam = new Int8Array(0x20);
+    this.oamRam = new Int8Array(0x100);
+    // Used by buffer the data read from $2007
+    this.dataBuffer = 0;
+    // Used to buffer the address from readVRAM
+    this.addrBuffer = 0;
+    // Background rendering
+    this.nameTableByte = 0;
+    this.attributeTableByte = 0;
+    this.bgLoByte = 0;
+    this.bgHiByte = 0;
+    // 2 16-bit shift registers - These contain the pattern table data
+    // for two tiles. Every 8 cycles, the data for the next tile is
+    // loaded into the upper 8 bits of this shift register. Meanwhile,
+    // the pixel to render is fetched from one of the lower 8 bits.
+    this.bgShiftLo = 0;
+    this.bgShiftHi = 0;
+    // 2 8-bit shift registers - These contain the palette attributes
+    // for the lower 8 pixels of the 16-bit shift register. These
+    // registers are fed by a latch which contains the palette
+    // attribute for the next tile. Every 8 cycles, the latch is
+    // loaded with the palette attribute for the next tile
+    this.atShiftLo = 0;
+    this.atShiftHi = 0;
+    this.atLatchLo = 0;
+    this.atLatchHi = 0;
   }
   reset() {
     this.cycle = 340;
@@ -855,21 +887,26 @@ class PPU2c02 {
     case PPU2c02.Registers.Ctrl:          // $2000 write
       this.ctrl = value;
       this.t |= ((this.ctrl & 0x3) << 2); // t: ...BA.. ........ = d: ......BA
+      this.dbg(`ppu.ctrl=${hex(value)}`);
       break;
 
     case PPU2c02.Registers.Mask:
+      this.dbg(`ppu.mask=${hex(value)}`);
       this.mask = value;
       break;
 
     case PPU2c02.Registers.OAMAddr:
+      // this.dbg(`ppu.oamaddr=${hex(value)}`);
       this.oamAddr = value;
       break;
 
     case PPU2c02.Registers.OAMData:
+      // this.dbg(`ppu.oamdata=${hex(value)}`);
       this.oamRam[this.oamAddr++] = value;
       break;
 
     case PPU2c02.Registers.Scroll:
+      // this.dbg(`ppu.scroll=${hex(value)} (latch=${this.w})`);
       if (this.w === 0) {
         // $2005 first write (w is 0)
         // t: ....... ...HGFED = d: HGFED...
@@ -889,6 +926,7 @@ class PPU2c02 {
       break;
 
     case PPU2c02.Registers.Addr:
+      // this.dbg(`ppu.addr=${hex(value)} (latch=${this.w})`);
       if (this.w === 0) {                // $2006 first write (w is 0)
         this.t = (this.t & 0x80FF)       // t: X...... ........ = 0
           | ((value & 0x3F) << 8);       // t: .FEDCBA ........ = d: ..FEDCBA
@@ -901,86 +939,193 @@ class PPU2c02 {
       break;
 
     case PPU2c02.Registers.Data:
+      // this.dbg(`ppu.data=${hex(value)}`);
       this.bus.write(this.v, value);
       this.v += (this.ctrl & PPU2c02.CTRLFlags.VRAMIncrement) ? 32 : 1;
       break;
     }
   }
+  dma(value, read) {
+    let addr = value << 8;
+    for (let i = 0; i < 256; i++) {
+      this.oamRam[this.oamaddr++] = read(addr++);
+    }
+  }
+  dbg(msg) {
+    console.log(`${this.scanline}@${this.cycle} ${msg}`);
+  }
 
-  // ---- Address Methods ----
-
-  addrNametable() {
-    return 0x2000 | (this.v & 0x0FFF);
+  // Loopy Attributes
+  coarseX() {
+    return this.v & 0x1F;
   }
-  addrAttributte() {
+  coarseY() {
+    return (this.v >> 5) & 0x1F;
   }
-  addrBackground() {
+  fineY() {
+    return (this.v >> 12) & 0x7;
   }
-  addrSprite() {
+  reloadX() {
+    if (this.renderingEnabled())
+      this.v = (this.v & 0xFBE0) | (this.t & 0x041F);
+  }
+  reloadY() {
+    if (this.renderingEnabled())
+      this.v = (this.v & 0x841F) | (this.t & 0x7BE0);
+  }
+  incrX() {
+    if (!this.renderingEnabled()) {
+      return;
+    } if ((this.v & 0x001F) === 31) {
+      this.v &= ~0x001F;
+      this.v ^=  0x0400;
+    } else {
+      this.v++;
+    }
+  }
+  incrY() {
+    if (!this.renderingEnabled()) {
+      return;
+    } if ((this.v & 0x7000) !== 0x7000) {
+      this.v += 0x1000;
+    } else {
+      this.v &= ~0x7000;
+      let y = (this.v & 0x03E0) >> 5;
+      if (y === 29) {
+        y = 0;
+        this.v ^= 0x0800;
+      } else if (y === 31) {
+        y = 0;
+      } else {
+        y++;
+      }
+      this.v = (this.v & ~0x03E0) | (y << 5);
+    }
+  }
+  reloadShiftRegisters() {
+    this.bgShiftLo = (this.bgShiftLo & 0xFF00) | this.bgLo;
+    this.bgShiftHi = (this.bgShiftHi & 0xFF00) | this.bgHi;
+    this.atLatchLo = (this.attributeTableByte & 1);
+    this.atLatchHi = (this.attributeTableByte & 2);
+  }
+  renderingEnabled() {
+    return (
+      (this.mask & PPU2c02.MaskFlags.SpriteVisible) |
+      (this.mask & PPU2c02.MaskFlags.BackgroundVisible));
   }
 
   // ---- Action Methods ----
 
-  actionVBlankStart() {
+  vBlankStart() {
+    this.dbg(`vblank-start`);
     this.status |= PPU2c02.StatusFlags.VBlank;
     if (this.ctrl & PPU2c02.CTRLFlags.EnableNMI)
       this.nmi = true;
   }
-  actionVBlankEnd() {
+  vBlankEnd() {
+    this.dbg(`vblank-end`);
     this.status &= ~PPU2c02.StatusFlags.VBlank;
     this.status &= ~PPU2c02.StatusFlags.SpriteZeroHit;
     this.status &= ~PPU2c02.StatusFlags.SpriteOverflow;
   }
-  actionReadVRAM() {
-    let nt, at, bgLo, bgHi;
+
+  _ntAddr() {
+    this.addrBuffer = 0x2000 | (this.v & 0x0FFF);
+  }
+  _atAddr() {
+    this.addrBuffer = 0x23C0 | (this.v & 0x0C00) | ((this.v >> 4) & 0x38) | ((this.v >> 2) & 0x07);
+  }
+  _bgAddr() {
+    const tableNum = (this.ctrl >> PPU2c02.CTRLFlags.PatternTableBG) & 0x1;
+    this.addrBuffer = (tableNum * 0x1000) + (this.nameTableByte * 16) + this.fineY();
+  }
+  _fetchNameTableByte() {
+    this.nameTableByte = this.bus.read(this.addrBuffer);
+  }
+  _fetchAttributeTableByte() {
+    this.attributeTableByte = this.bus.read(this.addrBuffer);
+    if (this.coarseY() & 2)
+      this.attributeTableByte >>= 4;
+    if (this.coarseX() & 2)
+      this.attributeTableByte >>= 2;
+  }
+  _fetchBGLo() {
+    this.bgLoByte = this.bus.read(this.addrBuffer);
+  }
+  _fetchBGHi() {
+    this.bgHiByte = this.bus.read(this.addrBuffer);
+  }
+  readVRAM() {
     switch (this.cycle % 8) {
-    case 1: this.addrBuffer = this.addrNametable(); break;
-    case 2: nt = this.bus.read(this.addrBuffer); break;
-    case 3: this.addrBuffer = this.addrAttributte(); break;
-    case 4: at = this.bus.read(this.addrBuffer); break;
-    case 5: this.addrBuffer = this.addrBackground(); break;
-    case 6: bgLo = this.bus.read(this.addrBuffer); break;
+    case 1: this._ntAddr(); this.reloadShiftRegisters(); break;
+    case 2: this._fetchNameTableByte(); break;
+    case 3: this._atAddr(); break;
+    case 4: this._fetchAttributeTableByte(); break;
+    case 5: this._bgAddr(); break;
+    case 6: this._fetchBGLo(); break;
     case 7: this.addrBuffer += 8; break;
-    case 0: bgHi = this.bus.read(this.addrBuffer); break;
+    case 0: this._fetchBGHi(); this.incrX(); break;
     }
-    console.log('read-vram', (this.cycle%8), nt, at, bgLo, bgHi);
+  }
+
+  pixelBackground() {
+    return 0;
+  }
+  pixel() {
+    return 0;
   }
 
   // ---- Scanline Methods ----
 
   scanlineNMI() {
-    if (this.cycle === 1) {
-      this.status |= PPU2c02.StatusFlags.VBlank;
-      if (this.ctrl & PPU2c02.CTRLFlags.EnableNMI)
-        this.nmi = true;
+    if (this.cycle === 1)
+      this.vBlankStart();
+  }
+  scanlinePre() {
+    if (this.cycle === 1)
+      this.vBlankEnd();
+    if (between(this.cycle, 321, 336) ||
+        between(this.cycle, 1, 256))
+      this.readVRAM();
+    if (between(this.cycle, 280, 304))
+      this.incrY();
+    if (this.cycle === 340) {
+      this._fetchNameTableByte();
+      if (this.frameCount % 2 !== 0 && this.renderingEnabled())
+        this.cycle++;
     }
   }
-  scanlinePost() {
-    if (this.cycle === 0) {
-      // new frame
-      // this.frameCount++;
+  scanlineStep() {
+    const visibleDots = between(this.cycle, 1, 256);
+    if (visibleDots)
+      this.pixel();
+    if (visibleDots || between(this.cycle, 321, 336))
+      this.readVRAM();
+    if (this.cycle === 340)
+      this._fetchNameTableByte();
+    if (this.cycle === 256) {
+      this.pixel();
+      this._fetchBGHi();
+      this.incrY();
     }
-  }
-  scanlineStep(pre=false) {
-    if (pre && this.cycle === 1) {
-      this.actionVBlankEnd();
-    }
-    if (this.cycle > 0) {
-      // this.actionReadVRAM();
+    if (this.cycle === 257) {
+      this.pixel();
+      this.reloadShiftRegisters();
+      this.reloadX();
     }
   }
   step() {
-    switch (this.scanline) {
-    case between(this.scanline, 0, 239): this.scanlineStep(); break;
-    case 240: this.scanlinePost(); break;
-    case 241: this.scanlineNMI(); break;
-    case 261: this.scanlineStep(true); break;
-    }
-
+    if (this.scanline === -1)
+      this.scanlinePre();
+    else if (this.scanline === 241)
+      this.scanlineNMI();
+    else if (between(this.scanline, 0, 239))
+      this.scanlineStep();
     if (++this.cycle > 340) {
       this.cycle = 0;
       if (++this.scanline > 260) {
         this.scanline = -1;
+        this.frameCount++;
       }
     }
   }
@@ -1120,7 +1265,7 @@ newinstr('BIT', 0x2C, AddrModes.Absolute,    3, 4);
 newinstr('BMI', 0x30, AddrModes.Relative,    2, 2);
 newinstr('BNE', 0xD0, AddrModes.Relative,    2, 2);
 newinstr('BPL', 0x10, AddrModes.Relative,    2, 2);
-newinstr('BRK', 0x00, AddrModes.Implied,     1, 7);
+newinstr('BRK', 0x00, AddrModes.Implied,     2, 7);  // documented as size=1
 newinstr('BVC', 0x50, AddrModes.Relative,    2, 2);
 newinstr('BVS', 0x70, AddrModes.Relative,    2, 2);
 newinstr('CLC', 0x18, AddrModes.Implied,     1, 2);
@@ -1552,7 +1697,7 @@ function parse6502asm(source) {
   return star(parseLine);
 }
 
-class ArrayBus extends Array {
+class ArrayBus extends Uint8Array {
   constructor(s) {
     super(s).fill(0);
   }
