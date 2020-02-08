@@ -154,7 +154,7 @@ const Debugger = () =>  {
       drawPatternTablePixels(canvas0Ref.current, emulator, 0);
       drawPatternTablePixels(canvas1Ref.current, emulator, 1);
     }
-  });
+  }, [canvas0Ref.current, canvas1Ref.current]);
   return (
     <DbgShell>
       {emulator.cartridge && <div>
