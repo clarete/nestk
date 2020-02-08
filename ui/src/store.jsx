@@ -4,7 +4,7 @@ import Buff from './buff';
 import * as nes from '../../nes';
 
 const emulator = new nes.NES();
-const initialState = { emulator, disassembled: [] };
+const initialState = { emulator, disassembled: [], ui: { showDebugger: true } };
 const store = createContext(initialState);
 const { Provider } = store;
 
@@ -15,12 +15,16 @@ const createReducer = () => {
       state.emulator.insertCartridge(new Buff(action.data));
       const disassembled = state.emulator.disassemble();
       return { ...state, disassembled };
-    case 'step':        /* Execute single instruction */
+    case 'step':        /* Execute 3 PPU steps & single CPU instruction */
       state.emulator.step();
       return { ...state };
     case 'update':      /* Force re-rendering what depend on the emulator */
       return { ...state };
-    default:            /* Not a valid event */
+    case 'ui.toggleShowDebugger': {
+      const newState = { ...state };
+      newState.ui.showDebugger = !newState.ui.showDebugger;
+      return newState;
+    } default:          /* Not a valid event */
       throw new Error(`No action ${action.type}`);
     };
   };

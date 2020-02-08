@@ -2,17 +2,16 @@ import * as React from "react";
 import PropTypes from "prop-types";
 import styled from 'styled-components';
 import { List } from 'react-virtualized';
+import Grid from '@material-ui/core/Grid';
 
 import { store } from './store';
 import * as nes from '../../nes';
 
 const DbgShell = styled.div`
   /* Sizes & Spacing */
-  width: 256px;
-  height: 340px;
+  width: 100%;
+  height: 100%;
   font-size: 10px;
-  /* Positioning */
-  float: right;
   /* Formatting */
   background-color: #fc0;
   font-family: monospace;
@@ -20,21 +19,22 @@ const DbgShell = styled.div`
 
 const DbgRegWrap = styled.div`
   /* Sizes & Spacing */
-  height: 20px;
-  padding: 10px 0px 20px 10px;
+  padding: 0 0 0 10px;
+  border-bottom: solid 1px #fd0;
 `;
 
 const DbgRegList = styled.ul`
   /* Sizes & Spacing */
   margin: 0;
-  padding: 0;
+  padding: 5px 0;
   /* Positioning */
   display: flex;
+  flex-wrap: wrap;
   /* Formatting */
   list-style: none;
   /* Children */
   & li {
-    padding-right: 5px;
+    padding-right: 10px;
   }
 `;
 
@@ -58,43 +58,38 @@ const DbgDisWrap = styled.div`
 `;
 
 const DbgDisList = () => {
-  const { state, dispatch } = React.useContext(store);
+  const { state } = React.useContext(store);
   const selectedRow = state
     .disassembled
     .findIndex(x => x.address === state.emulator.cpu.pc);
   return (
-    <div>
-      <button onClick={e => dispatch({ type: 'step' })}>
-        ↪
-      </button>
-      <DbgDisWrap>
-        <List
-          className="dbg-lst"
-          width={246}
-          height={140}
-          rowCount={state.disassembled.length}
-          rowHeight={14}
-          rowRenderer={({ index, key, style }) => {
-            const item = state.disassembled[index];
-            const current = item.address === state.emulator.cpu.pc;
-            const bindata = item.rawdata.map(x => nes.safehex(x)).join(' ');
-            const mnemonic = (item.instruction && !item.instruction.illegal)
-              ? item.instruction.mnemonic
-              : '.db';
-            return (
-              <div key={key} style={style} className={current ? 'dbg-current' : null}>
-                <div style={{ width: 15, float: 'left', clear: 'left' }}>{current ? '>' : '\u00A0'}</div>
-                <div style={{ width: 45, float: 'left' }}>{nes.hex(item.address, 4)}</div>
-                <div style={{ width: 70, float: 'left' }}>{bindata}</div>
-                <div style={{ width: 40, float: 'left' }}>{mnemonic}</div>
-                <div style={{ width: 40, float: 'left' }}>{item.fmtop || ''}</div>
-              </div>
-            );
-          }}
-          scrollToIndex={selectedRow}
-        />
-      </DbgDisWrap>
-    </div>
+    <DbgDisWrap>
+      <List
+        className="dbg-lst"
+        width={246}
+        height={230}
+        rowCount={state.disassembled.length}
+        rowHeight={12}
+        rowRenderer={({ index, key, style }) => {
+          const item = state.disassembled[index];
+          const current = item.address === state.emulator.cpu.pc;
+          const bindata = item.rawdata.map(x => nes.safehex(x)).join(' ');
+          const mnemonic = (item.instruction && !item.instruction.illegal)
+            ? item.instruction.mnemonic
+            : '.db';
+          return (
+            <div key={key} style={style} className={current ? 'dbg-current' : null}>
+              <div style={{ width: 15, float: 'left', clear: 'left' }}>{current ? '>' : '\u00A0'}</div>
+              <div style={{ width: 45, float: 'left' }}>{nes.hex(item.address, 4)}</div>
+              <div style={{ width: 70, float: 'left' }}>{bindata}</div>
+              <div style={{ width: 40, float: 'left' }}>{mnemonic}</div>
+              <div style={{ width: 40, float: 'left' }}>{item.fmtop || ''}</div>
+            </div>
+          );
+        }}
+        scrollToIndex={selectedRow}
+      />
+    </DbgDisWrap>
   );
 };
 
@@ -145,6 +140,24 @@ function drawPatternTablePixels(canvas, emulator, addr) {
   dctx.drawImage(source, 0, 0, width*5.5, height*1.3);
 }
 
+const DbgToolBarShell = styled.div`
+  padding: 10px 10px 2px 10px;
+`;
+
+const DbgToolBar = () => {
+  const { dispatch } = React.useContext(store);
+  return (
+    <DbgToolBarShell>
+      <button onClick={e => dispatch({ type: 'step' })}>
+        ▶
+      </button>
+      <button onClick={e => dispatch({ type: 'step' })}>
+        ↪
+      </button>
+    </DbgToolBarShell>
+  );
+};
+
 const Debugger = () =>  {
   const { state: { emulator } } = React.useContext(store);
   const canvas0Ref = React.useRef();
@@ -158,13 +171,17 @@ const Debugger = () =>  {
   return (
     <DbgShell>
       {emulator.cartridge && <div>
+        <DbgToolBar />
         <DbgRegWrap>
           <DbgRegList>
-            <li><b>A: </b> ${nes.hex(emulator.cpu.a)}</li>
-            <li><b>X: </b> ${nes.hex(emulator.cpu.x)}</li>
-            <li><b>Y: </b> ${nes.hex(emulator.cpu.y)}</li>
-            <li><b>P: </b> ${nes.hex(emulator.cpu.p)}</li>
-            <li><b>PC:</b> ${nes.hex(emulator.cpu.pc)}</li>
+            <li><b>A:</b>${nes.hex(emulator.cpu.a)}</li>
+            <li><b>X:</b>${nes.hex(emulator.cpu.x)}</li>
+            <li><b>Y:</b>${nes.hex(emulator.cpu.y)}</li>
+            <li><b>P:</b>${nes.hex(emulator.cpu.p)}</li>
+            <li><b>PC:</b>${nes.hex(emulator.cpu.pc)}</li>
+            <li><b>CL:</b>${nes.hex(emulator.cpu.cycles)}</li>
+            <li><b>DT:</b>${nes.hex(emulator.ppu.cycle)}</li>
+            <li><b>SL:</b>${nes.hex(emulator.ppu.scanline)}</li>
           </DbgRegList>
         </DbgRegWrap>
         <DbgDisList />
@@ -177,29 +194,35 @@ const Debugger = () =>  {
   );
 }
 
-const ScreenCanvas = styled.canvas`
+const ScreenCanvasShell = styled.div`
   /* Size & Spacing */
-  width: 256px;
-  height: 240px;
+  width: 100%;
+  height: 350px;
   padding: 0;
   margin: 0;
   /* Positioning */
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   /* Formatting */
   background-color: #000000;
 `;
 
 const Screen = () => (
-  <ScreenCanvas>
-    <canvas></canvas>
-  </ScreenCanvas>
+  <ScreenCanvasShell>
+    <canvas
+      style={{
+        width: 260,
+        height: 240,
+        border: 'solid 1px red',
+      }}>
+    </canvas>
+  </ScreenCanvasShell>
 );
 
 const CartridgeSlotShell = styled.div`
   /* Size & Spacing */
   padding: 10px;
-  width: 256px;
-  height: 100px;
   /* Alignment */
   text-align: center;
   /* Formatting */
@@ -226,12 +249,60 @@ const CartridgeSlot = () => {
   );
 };
 
+const ToolbarShell = styled.ul`
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  height: 40px;
+  background-color: #222;
+  & li {
+    padding: 8px;
+    float: left;
+    display: block;
+  }
+`;
+
+const Toolbar = () => {
+  const { state, dispatch } = React.useContext(store);
+  return (
+    <ToolbarShell>
+      <li>
+        <label>
+          <input
+            type="checkbox" checked={state.ui.showDebugger}
+            onChange={() => dispatch({ type: 'ui.toggleShowDebugger' })} />
+          Show Debugger
+        </label>
+      </li>
+    </ToolbarShell>
+  );
+};
+
 const EmulatorShell = styled.div`
   /* Size & Spacing */
-  width: 512px;
+  width: 768px;
   margin: auto;
   padding: 0px;
 `;
+
+const Emulator = () => {
+  const { state } = React.useContext(store);
+  return (
+    <EmulatorShell>
+      <Grid container>
+        <Grid item xs={state.ui.showDebugger ? 8 : 12}>
+          <Screen />
+          <CartridgeSlot />
+          <Toolbar />
+        </Grid>
+        {state.ui.showDebugger &&
+         <Grid item xs={4}>
+           <Debugger />
+         </Grid>}
+      </Grid>
+    </EmulatorShell>
+  );
+};
 
 const createJoypad0 = () => new nes.Joypad({
   65: nes.Joypad.Button.A,        /* 65 = 'a' */
@@ -258,14 +329,18 @@ export default function() {
       }
     });
   }, []);
+
+  React.useEffect(() => {
+    const draw = () => {
+      if (emulator.cartridge)
+        dispatch({ type: 'step' });
+      window.requestAnimationFrame(draw);
+    };
+    window.requestAnimationFrame(draw);
+  }, []);
+
   /* Finish setting up emulator  */
   emulator.plugScreen();
   emulator.plugController1(joypad0);
-  return (
-    <EmulatorShell>
-      <Debugger />
-      <Screen />
-      <CartridgeSlot />
-    </EmulatorShell>
-  );
+  return <Emulator />;
 }
