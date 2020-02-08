@@ -1390,7 +1390,7 @@ class Cartridge {
   }
   readprg(addr) {
     // FIX-TODO: Should work for banks >16K
-    return this.prg[addr > 0xC000 ? addr & 0x3FFF : addr];
+    return this.prg[addr > 0xC000 ? addr & 0x3FFF : addr - 0xC000];
   }
   static fromRomData(romData) {
     return new Cartridge(inesparser(romData));
