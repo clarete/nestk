@@ -154,6 +154,27 @@ class CPU6502 {  // 2A03
     this.interrupt();
   }
 
+  // -- Interrupts --
+
+  interrupt() {
+    const vector = CPU6502.InterruptVectors[this.int];
+    const lo = this.bus.read(vector + 0);
+    const hi = this.bus.read(vector + 1);
+    if (this.int === CPU6502.Interrupt.Reset)
+      this.s -= 3;
+    else {
+      this.push((this.pc >> 8) & 0xFF);
+      this.push(this.pc & 0xFF);
+      this.push(this.p | 0b00110000);
+    }
+    this.p |= CPU6502.Flags.Interrupt;
+    this.pc = (hi << 8) | lo;
+    this.int = CPU6502.Flags.Interrupt.None;
+  }
+  requestInterrupt(interrupt) {
+    this.int = interrupt;
+  }
+
   // -- Stack --
 
   push(value) {
@@ -528,26 +549,6 @@ class CPU6502 {  // 2A03
   _instr_RRA(addr, instruction) {
     this._instr_ROR(addr, instruction);
     this._instr_ADC(addr);
-  }
-
-  // Interrupts
-  interrupt() {
-    const vector = CPU6502.InterruptVectors[this.int];
-    const lo = this.bus.read(vector + 0);
-    const hi = this.bus.read(vector + 1);
-    if (this.int === CPU6502.Interrupt.Reset)
-      this.s -= 3;
-    else {
-      this.push((this.pc >> 8) & 0xFF);
-      this.push(this.pc & 0xFF);
-      this.push(this.p | 0b00110000);
-    }
-    this.p |= CPU6502.Flags.Interrupt;
-    this.pc = (hi << 8) | lo;
-    this.int = CPU6502.Flags.Interrupt.None;
-  }
-  requestInterrupt(interrupt) {
-    this.int = interrupt;
   }
 }
 
