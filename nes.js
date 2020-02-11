@@ -48,13 +48,6 @@ class CPU6502 {  // 2A03
     this.delay = 0;
   }
 
-  resetPC() {
-    const addr = CPU6502.InterruptVectors[CPU6502.Interrupt.RESET];
-    const lo = this.bus.read(addr + 0);
-    const hi = this.bus.read(addr + 1);
-    this.pc = (hi << 8) | lo;
-  }
-
   operand(instr) {
     const addr8 = (offset=0) => {
       return (this.bus.read(this.pc++) & 0xFF) + offset;
@@ -154,9 +147,11 @@ class CPU6502 {  // 2A03
     return this.cycles - cycles;
   }
 
-  run() {
-    while (true)
-      this.step();
+  reset() {
+    this.s = 0xFD;       // Stack pointer
+    this.p = 0x24;       // Status flags
+    this.requestInterrupt(CPU6502.Interrupt.RESET);
+    this.interrupt();
   }
 
   // -- Stack --
@@ -670,8 +665,7 @@ class NES {
   }
   insertCartridge(cartridgeData) {
     this.cartridge = Cartridge.fromRomData(cartridgeData);
-    this.cpu.resetPC();
-    this.ppu.reset();
+    this.reset();
   }
   reset() {
     this.masterClock = -2;
