@@ -4,7 +4,11 @@ import styled from 'styled-components';
 import { List } from 'react-virtualized';
 import Grid from '@material-ui/core/Grid';
 
-import { store } from './store';
+import IconPlay from './imgs/ico-play.png';
+import IconPause from './imgs/ico-pause.png';
+import IconStep from './imgs/ico-step.png';
+
+import { store, EmulationState } from './store';
 import * as nes from '../../nes';
 
 const DbgShell = styled.div`
@@ -93,9 +97,6 @@ const DbgDisList = () => {
   );
 };
 
-const DbgPalletes = styled.div`
-`;
-
 const DbgChr = styled.canvas`
   background-color: #fe0;
   width: 128px;
@@ -142,19 +143,56 @@ function drawPatternTablePixels(canvas, emulator, addr) {
 
 const DbgToolBarShell = styled.div`
   padding: 10px 10px 2px 10px;
+  height: 35px;
+`;
+
+const DbgBtn = styled.a`
+  text-align: center;
+  display: block;
+  float: left;
+  padding: 0;
+  margin: 0 4px 0 0;
+
+  & img {
+    width: 20px;
+    height: 20px;
+    padding: 4px;
+    border: solid 1px #000;
+  }
 `;
 
 const DbgToolBar = () => {
-  const { dispatch } = React.useContext(store);
+  const { dispatch, state } = React.useContext(store);
   return (
     <DbgToolBarShell>
-      <button onClick={e => dispatch({ type: 'step' })}>
-        ▶
-      </button>
-      <button onClick={e => dispatch({ type: 'step' })}>
-        ↪
-      </button>
+      {state.ui.emulationState === EmulationState.Step &&
+       <DbgBtn alt="Start" onClick={e => dispatch({ type: 'emu.start' })}>
+         <img src={IconPlay} />
+       </DbgBtn>}
+
+      {state.ui.emulationState === EmulationState.Running &&
+       <DbgBtn alt="Pause" onClick={e => dispatch({ type: 'emu.pause' })}>
+         <img src={IconPause} />
+       </DbgBtn>}
+
+      <DbgBtn alt="Step" onClick={e => dispatch({ type: 'emu.step' })}>
+        <img src={IconStep} />
+      </DbgBtn>
     </DbgToolBarShell>
+  );
+};
+
+const DbgPalettes = () => {
+  const { state: { emulator } } = React.useContext(store);
+  const [palettes, setPalettes] = React.useState([]);
+
+  React.useEffect(() => {
+  }, []);
+
+  return (
+    <div>
+      
+    </div>
   );
 };
 
@@ -185,10 +223,11 @@ const Debugger = () =>  {
           </DbgRegList>
         </DbgRegWrap>
         <DbgDisList />
-        <DbgPalletes>
+        <DbgPalettes />
+        <div>
           <DbgChr ref={canvas0Ref}></DbgChr>
           <DbgChr ref={canvas1Ref}></DbgChr>
-        </DbgPalletes>
+        </div>
       </div>}
     </DbgShell>
   );
@@ -208,17 +247,51 @@ const ScreenCanvasShell = styled.div`
   background-color: #000000;
 `;
 
-const Screen = () => (
-  <ScreenCanvasShell>
-    <canvas
-      style={{
-        width: 260,
-        height: 240,
-        border: 'solid 1px red',
-      }}>
-    </canvas>
-  </ScreenCanvasShell>
-);
+function drawScreenFrame(canvas, emulator) {
+  const [width, height] = [260, 240];
+  const source = document.createElement('canvas');
+  const context = source.getContext('2d');
+  const imagepx = context.createImageData(width, height);
+
+  for (const pixel of emulator.ppu.framebuffer) {
+    const red = pixel.y * (width * 4) + (pixel.x * 4);
+    imagepx.data[red + 0] = pixel.color.r;
+    imagepx.data[red + 1] = pixel.color.g;
+    imagepx.data[red + 2] = pixel.color.b;
+    imagepx.data[red + 3] = 0xFF;
+  }
+
+  console.log('draw', emulator.ppu.framebuffer.length, 'pixels');
+
+  context.putImageData(imagepx, 0, 0);
+  const dctx = canvas.getContext('2d');
+  dctx.imageSmoothingEnabled = false;
+  dctx.drawImage(source, 0, 0, width*2, height*2);
+}
+
+const Screen = () => {
+  const { state: { emulator } } = React.useContext(store);
+  const canvasRef = React.useRef();
+  React.useLayoutEffect(() => {
+    if (emulator.cartridge && emulator.cartridge.chr && canvasRef.current) {
+      if (emulator.ppu.framebuffer.length > 0) {
+        drawScreenFrame(canvasRef.current, emulator);
+      }
+    }
+  }, [canvasRef.current, emulator.ppu.framebuffer]);
+  return (
+    <ScreenCanvasShell>
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: 260,
+          height: 240,
+          border: 'solid 1px red',
+        }}>
+      </canvas>
+    </ScreenCanvasShell>
+  );
+};
 
 const CartridgeSlotShell = styled.div`
   /* Size & Spacing */
@@ -316,7 +389,7 @@ const createJoypad0 = () => new nes.Joypad({
 });
 
 export default function() {
-  const { dispatch, state: { emulator } } = React.useContext(store);
+  const { dispatch, state: { emulator, ui } } = React.useContext(store);
   const joypad0 = createJoypad0();
   /* Input Event Mapping */
   React.useEffect(() => {
@@ -324,7 +397,7 @@ export default function() {
     window.addEventListener('keydown', (event) => {
       if (!emulator.cartridge) return;
       switch (event.keyCode) {
-        case 'N'.charCodeAt(0): dispatch({ type: 'step' }); break;
+        case 'N'.charCodeAt(0): dispatch({ type: 'emu.step' }); break;
         default: joypad0.pressKey(event.keyCode); break;
       }
     });
@@ -332,12 +405,13 @@ export default function() {
 
   React.useEffect(() => {
     const draw = () => {
-      if (emulator.cartridge)
-        dispatch({ type: 'step' });
-      window.requestAnimationFrame(draw);
+      if (ui.emulationState === EmulationState.Running) {
+        dispatch({ type: 'emu.runStep' });
+        window.requestAnimationFrame(draw);
+      }
     };
     window.requestAnimationFrame(draw);
-  }, []);
+  }, [ui.emulationState]);
 
   /* Finish setting up emulator  */
   emulator.plugScreen();
