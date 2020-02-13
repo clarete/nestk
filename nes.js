@@ -598,7 +598,7 @@ class Joypad {
 class NES {
   constructor() {
     this.masterClock = 0;
-    this.cpumem = new Int16Array(0x1FFF);
+    this.cpumem = new Uint16Array(0x1FFF);
     this.cpubus = new MemoryBus();
     this.ppubus = new MemoryBus();
     this.cpu = new CPU6502(this.cpubus);
