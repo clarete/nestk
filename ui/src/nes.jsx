@@ -55,14 +55,30 @@ const DbgDisWrap = styled.div`
     &::-webkit-scrollbar { width: 6px; background-color: #fd0; }
     &::-webkit-scrollbar-thumb { background-color: #fa0; }
   }
-  & .dbg-current {
+  & .dbg-lst .dbg-instr-addr {
+    cursor: pointer;
+  }
+  & .dbg-lst .dbg-current {
     font-weight: bold;
     background-color: #fd0;
+  }
+  & .dbg-lst .dbg-brkpoint div {
+    color: #f00;
+    height: 20px;
+    overflow: hidden;
+  }
+  & .dbg-lst .dbg-brkpoint div:first-child {
+    display: list-item;
+    list-style-position: inside;
+    list-style-type: disc;
+    font-size: 20px;
+    color: #f00;
+    margin-top: -8.5px;
   }
 `;
 
 const DbgDisList = () => {
-  const { state } = React.useContext(store);
+  const { dispatch, state } = React.useContext(store);
   const selectedRow = state
     .disassembled
     .findIndex(x => x.address === state.emulator.cpu.pc);
@@ -77,14 +93,27 @@ const DbgDisList = () => {
         rowRenderer={({ index, key, style }) => {
           const item = state.disassembled[index];
           const current = item.address === state.emulator.cpu.pc;
+          const brkpoint = state.breakpoints.has(item.address);
           const bindata = item.rawdata.map(x => nes.safehex(x)).join(' ');
           const mnemonic = (item.instruction && !item.instruction.illegal)
             ? item.instruction.mnemonic
             : '.db';
+          // CSS Classes that might be added to a given single item
+          const classNames = [];
+          if (current) classNames.push('dbg-current');
+          if (brkpoint) classNames.push('dbg-brkpoint');
           return (
-            <div key={key} style={style} className={current ? 'dbg-current' : null}>
+            <div
+              key={key}
+              style={style}
+              className={classNames.join(' ')}
+            >
               <div style={{ width: 15, float: 'left', clear: 'left' }}>{current ? '>' : '\u00A0'}</div>
-              <div style={{ width: 45, float: 'left' }}>{nes.hex(item.address, 4)}</div>
+              <div style={{ width: 45, float: 'left' }} className="dbg-instr-addr">
+                <a onClick={() => dispatch({ type: 'dbg.toggleBreakpoint', address: item.address })}>
+                  {nes.hex(item.address, 4)}
+                </a>
+              </div>
               <div style={{ width: 70, float: 'left' }}>{bindata}</div>
               <div style={{ width: 40, float: 'left' }}>{mnemonic}</div>
               <div style={{ width: 40, float: 'left' }}>{item.fmtop || ''}</div>

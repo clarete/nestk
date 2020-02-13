@@ -13,6 +13,7 @@ const emulator = new nes.NES();
 const initialState = {
   emulator,                     // The instance of the emulator
   disassembled: [],             // Disassembled program
+  breakpoints: new Set(),       // Set PC addresses for breakpoints
   ui: {                         // UI State
     showDebugger: true,
     emulationState: EmulationState.NoGameLoaded,
@@ -36,10 +37,12 @@ const createReducer = () => {
         return { ...state };
       }
 
+    /* Change emulation state to Running state */
     case 'emu.start':
       state.ui.emulationState = EmulationState.Running;
       return { ...state };
 
+    /* Change emulation state to Step state */
     case 'emu.pause':
       state.ui.emulationState = EmulationState.Step;
       return { ...state };
@@ -51,9 +54,24 @@ const createReducer = () => {
 
     /* Crank the wheel on the running of the emulation */
     case 'emu.runStep':
-      for (let i = 0; i < 1000; i++)
+      for (let i = 0; i < 1000; i++) {
+        // We've hit a breakpoint.
+        if (state.breakpoints.has(state.emulator.cpu.pc)) {
+          state.ui.emulationState = EmulationState.Step;
+          break;
+        }
         state.emulator.step();
+      }
       return { ...state };
+
+    /* Add or Remove a breakpoint */
+    case 'dbg.toggleBreakpoint':
+      const newState = { ...state };
+      if (state.breakpoints.has(action.address))
+        state.breakpoints.delete(action.address);
+      else
+        state.breakpoints.add(action.address);
+      return newState;
 
     /* Toggle visibility of the debugger*/
     case 'ui.toggleShowDebugger': {
