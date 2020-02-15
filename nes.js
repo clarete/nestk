@@ -1,14 +1,13 @@
 /*
-
  * [x] Addressing Modes
  * [x] Instructions
- * [ ] Interrupts
- * [-] Cycles
+ * [x] Interrupts
+ * [x] Cycle Counting
+ * [x] Cartridge
+ * [x] iNES format
  * [-] PPU
  * [ ] Input
- * [-] Cartridge
- * [-] iNES format
-
+ * [ ] Mappers
  */
 
 class CPU6502 {  // 2A03
@@ -649,11 +648,9 @@ class NES {
     // Wire PPU to cartridge (will blow up if insertCartridge hasn't been called)
     this.ppubus.handleGet(0x0000, 0x0FFF, addr => this.cartridge.chr[addr & 0x0FFF]);
     this.ppubus.handleGet(0x1000, 0x1FFF, addr => this.cartridge.chr[addr & 0x1FFF]);
-
     // Wire PPU to its VRAM memory
     this.ppubus.handleGet(0x2000, 0x3EFF, addr => this.ppu.vram[addr - 0x2000]);
     this.ppubus.handlePut(0x2000, 0x3EFF, (addr, val) => this.ppu.vram[addr - 0x2000] = val);
-
     // Wire PPU to the palette ram
     const mirroraddr = a => [0x10, 0x14, 0x18, 0x1C].includes(a) ? a & 0xF : a;
     this.ppubus.handleGet(0x3F00, 0x3FFF, addr => this.ppu.paletteRam[mirroraddr(addr & 0x1F)]);
@@ -673,12 +670,6 @@ class NES {
     this.ppu.reset();
     this.cpu.reset();
   }
-  powerUp() {
-    while (true) {
-      this.step();
-    }
-  }
-
   disassemble() {
     // FIX-TODO: This will break with >16k PRG games
     const offset = (this.cartridge.prg.length === 0x4000)
@@ -758,6 +749,23 @@ const MirroringModes = {
   Horizontal: 1,
 };
 
+const NES_COLORS = [
+  0x666666, 0x002A88, 0x1412A7, 0x3B00A4, 0x5C007E, 0x6E0040, 0x6C0600, 0x561D00,
+  0x333500, 0x0B4800, 0x005200, 0x004F08, 0x00404D, 0x000000, 0x000000, 0x000000,
+  0xADADAD, 0x155FD9, 0x4240FF, 0x7527FE, 0xA01ACC, 0xB71E7B, 0xB53120, 0x994E00,
+  0x6B6D00, 0x388700, 0x0C9300, 0x008F32, 0x007C8D, 0x000000, 0x000000, 0x000000,
+  0xFFFEFF, 0x64B0FF, 0x9290FF, 0xC676FF, 0xF36AFF, 0xFE6ECC, 0xFE8170, 0xEA9E22,
+  0xBCBE00, 0x88D800, 0x5CE430, 0x45E082, 0x48CDDE, 0x4F4F4F, 0x000000, 0x000000,
+  0xFFFEFF, 0xC0DFFF, 0xD3D2FF, 0xE8C8FF, 0xFBC2FF, 0xFEC4EA, 0xFECCC5, 0xF7D8A5,
+  0xE4E594, 0xCFEF96, 0xBDF4AB, 0xB3F3CC, 0xB5EBF2, 0xB8B8B8, 0x000000, 0x000000,
+];
+
+const NES_PALETTE = NES_COLORS.map(c => ({
+  r: c >> 16,
+  g: c >> 8 & 0xFF,
+  b: c & 0xFF,
+}));
+
 class PPU2c02 {
   static CTRLFlags = {
     EnableNMI:       1 << 7,  // Execute NMI on VBlank             (0=Disabled, 1=Enabled)
@@ -818,33 +826,36 @@ class PPU2c02 {
     this.x = 0;  // Fine X
     this.w = 0;  // Write Latch
     // Memory
-    this.vram = new Int8Array(0x4000);
-    this.paletteRam = new Int8Array(0x20);
-    this.oamRam = new Int8Array(0x100);
+    this.vram = new Uint8Array(0x4000);
+    this.paletteRam = new Uint8Array(0x20);
+    this.oamRam = new Uint8Array(0x100);
     // Used by buffer the data read from $2007
     this.dataBuffer = 0;
-    // Used to buffer the address from readVRAM
+    // Used to buffer the address from fetchBackground
     this.addrBuffer = 0;
     // Background rendering
-    this.nameTableByte = 0;
-    this.attributeTableByte = 0;
-    this.bgLoByte = 0;
-    this.bgHiByte = 0;
-    // 2 16-bit shift registers - These contain the pattern table data
-    // for two tiles. Every 8 cycles, the data for the next tile is
-    // loaded into the upper 8 bits of this shift register. Meanwhile,
-    // the pixel to render is fetched from one of the lower 8 bits.
-    this.bgShiftLo = 0;
-    this.bgShiftHi = 0;
-    // 2 8-bit shift registers - These contain the palette attributes
-    // for the lower 8 pixels of the 16-bit shift register. These
-    // registers are fed by a latch which contains the palette
-    // attribute for the next tile. Every 8 cycles, the latch is
-    // loaded with the palette attribute for the next tile
-    this.atShiftLo = 0;
-    this.atShiftHi = 0;
-    this.atLatchLo = 0;
-    this.atLatchHi = 0;
+    this.bg = {
+      nameTableByte: 0,
+      attributeTableByte: 0,
+      bgLoByte: 0,
+      bgHiByte: 0,
+      // 2 16-bit shift registers - These contain the pattern table
+      // data for two tiles. Every 8 cycles, the data for the next
+      // tile is loaded into the upper 8 bits of this shift
+      // register. Meanwhile, the pixel to render is fetched from one
+      // of the lower 8 bits.
+      bgShift: new Uint16Array(2),
+      // 2 8-bit shift registers - These contain the palette
+      // attributes for the lower 8 pixels of the 16-bit shift
+      // register. These registers are fed by a latch which contains
+      // the palette attribute for the next tile. Every 8 cycles, the
+      // latch is loaded with the palette attribute for the next tile
+      atShift: new Uint8Array(2),
+      atLatch: [0, 0],
+    };
+    // Intermediary buffer
+    this.framebuffer = [];
+    this.framebufferStuff = [];
   }
   reset() {
     this.cycle = 340;
@@ -961,17 +972,24 @@ class PPU2c02 {
     return (this.v >> 12) & 0x7;
   }
   reloadX() {
-    if (this.renderingEnabled())
-      this.v = (this.v & 0xFBE0) | (this.t & 0x041F);
+    // console.log(`RELOAD X`);
+    // return;
+    // if (this.renderingEnabled())
+    this.v = (this.v & 0xFBE0) | (this.t & 0x041F);
   }
   reloadY() {
-    if (this.renderingEnabled())
-      this.v = (this.v & 0x841F) | (this.t & 0x7BE0);
+    // console.log(`RELOAD Y`);
+    // return;
+    // if (this.renderingEnabled())
+    this.v = (this.v & 0x841F) | (this.t & 0x7BE0);
   }
   incrX() {
-    if (!this.renderingEnabled()) {
-      return;
-    } if ((this.v & 0x001F) === 31) {
+    // console.log(`INCR X`);
+    // return;
+    // if (!this.renderingEnabled()) {
+    //   return;
+    // }
+    if ((this.v & 0x001F) === 31) {
       this.v &= ~0x001F;
       this.v ^=  0x0400;
     } else {
@@ -979,9 +997,12 @@ class PPU2c02 {
     }
   }
   incrY() {
-    if (!this.renderingEnabled()) {
-      return;
-    } if ((this.v & 0x7000) !== 0x7000) {
+    // console.log(`INCR Y`);
+    // return;
+    // if (!this.renderingEnabled()) {
+    //   return;
+    // }
+    if ((this.v & 0x7000) !== 0x7000) {
       this.v += 0x1000;
     } else {
       this.v &= ~0x7000;
@@ -997,12 +1018,30 @@ class PPU2c02 {
       this.v = (this.v & ~0x03E0) | (y << 5);
     }
   }
-  reloadShiftRegisters() {
-    this.bgShiftLo = (this.bgShiftLo & 0xFF00) | this.bgLo;
-    this.bgShiftHi = (this.bgShiftHi & 0xFF00) | this.bgHi;
-    this.atLatchLo = (this.attributeTableByte & 1);
-    this.atLatchHi = (this.attributeTableByte & 2);
+  copyX() {
+    // console.log(`COPY X`);
+    // return;
+    this.v = (this.v & 0xFBE0) | (this.t & 0x041F);
   }
+  copyY() {
+    // console.log(`COPY Y`);
+    // return;
+    this.v = (this.v & 0x841F) | (this.t & 0x7BE0);
+  }
+
+  reloadBGRegisters() {
+    this.bg.bgShift[0] = (this.bg.bgShift[0] & 0xFF00) | this.bg.bgLoByte;
+    this.bg.bgShift[1] = (this.bg.bgShift[1] & 0xFF00) | this.bg.bgHiByte;
+    this.bg.atLatch[0] = this.attributeTableByte & 1;
+    this.bg.atLatch[1] = this.attributeTableByte & 2;
+  }
+  shiftBGRegisters() {
+    this.bg.bgShift[0] <<= 1;
+    this.bg.bgShift[1] <<= 1;
+    this.bg.atShift[0] = (this.bg.atShift[0] << 1) | this.bg.atLatch[0];
+    this.bg.atShift[1] = (this.bg.atShift[1] << 1) | this.bg.atLatch[1];
+  }
+
   renderingEnabled() {
     return (
       (this.mask & PPU2c02.MaskFlags.SpriteVisible) |
@@ -1023,7 +1062,6 @@ class PPU2c02 {
     this.status &= ~PPU2c02.StatusFlags.SpriteZeroHit;
     this.status &= ~PPU2c02.StatusFlags.SpriteOverflow;
   }
-
   _ntAddr() {
     this.addrBuffer = 0x2000 | (this.v & 0x0FFF);
   }
@@ -1032,27 +1070,27 @@ class PPU2c02 {
   }
   _bgAddr() {
     const tableNum = (this.ctrl >> PPU2c02.CTRLFlags.PatternTableBG) & 0x1;
-    this.addrBuffer = (tableNum * 0x1000) + (this.nameTableByte * 16) + this.fineY();
+    this.addrBuffer = (tableNum * 0x1000) + (this.bg.nameTableByte * 16) + this.fineY();
   }
   _fetchNameTableByte() {
-    this.nameTableByte = this.bus.read(this.addrBuffer);
+    this.bg.nameTableByte = this.bus.read(this.addrBuffer);
   }
   _fetchAttributeTableByte() {
-    this.attributeTableByte = this.bus.read(this.addrBuffer);
+    this.bg.attributeTableByte = this.bus.read(this.addrBuffer);
     if (this.coarseY() & 2)
-      this.attributeTableByte >>= 4;
+      this.bg.attributeTableByte >>= 4;
     if (this.coarseX() & 2)
-      this.attributeTableByte >>= 2;
+      this.bg.attributeTableByte >>= 2;
   }
   _fetchBGLo() {
-    this.bgLoByte = this.bus.read(this.addrBuffer);
+    this.bg.bgLoByte = this.bus.read(this.addrBuffer);
   }
   _fetchBGHi() {
-    this.bgHiByte = this.bus.read(this.addrBuffer);
+    this.bg.bgHiByte = this.bus.read(this.addrBuffer);
   }
-  readVRAM() {
+  fetchBackground() {
     switch (this.cycle % 8) {
-    case 1: this._ntAddr(); this.reloadShiftRegisters(); break;
+    case 1: this._ntAddr(); this.reloadBGRegisters(); break;
     case 2: this._fetchNameTableByte(); break;
     case 3: this._atAddr(); break;
     case 4: this._fetchAttributeTableByte(); break;
@@ -1062,60 +1100,68 @@ class PPU2c02 {
     case 0: this._fetchBGHi(); this.incrX(); break;
     }
   }
-
+  readColor(palette, index) {
+    const addr = this.bus.read(0x3F00 + (palette * 4) + index);
+    const color = NES_PALETTE[addr % 64];
+    return color;
+  }
   pixelBackground() {
-    return 0;
+    const nth = (bitfield, bit) => (bitfield >> bit) & 1;
+    const index =
+      (nth(this.bg.bgShift[1], 15 - this.x) << 1) |
+      (nth(this.bg.bgShift[0], 15 - this.x) << 0);
+    const palette =
+      (nth(this.bg.atShift[1], 7 - this.x) << 1) |
+      (nth(this.bg.atShift[0], 7 - this.x) << 0);
+    this.shiftBGRegisters();
+    return this.readColor(palette, index);
   }
   pixel() {
-    return 0;
-  }
+    const bgVisible = this.mask & PPU2c02.MaskFlags.BackgroundVisible;
+    const noClipping = this.mask & PPU2c02.MaskFlags.BackgroundClipping;
 
-  // ---- Scanline Methods ----
-
-  scanlineNMI() {
-    if (this.cycle === 1)
-      this.vBlankStart();
-  }
-  scanlinePre() {
-    if (this.cycle === 1)
-      this.vBlankEnd();
-    if (between(this.cycle, 321, 336) ||
-        between(this.cycle, 1, 256))
-      this.readVRAM();
-    if (between(this.cycle, 280, 304))
-      this.incrY();
-    if (this.cycle === 340) {
-      this._fetchNameTableByte();
-      if (this.frameCount % 2 !== 0 && this.renderingEnabled())
-        this.cycle++;
+    if (bgVisible && noClipping && this.x < 8) {
+      const [x, y] = [this.cycle - 1, this.scanline];
+      const bg = this.pixelBackground();
+      const color = bg;
+      this.framebufferStuff.push({ x, y, color });
     }
   }
-  scanlineStep() {
-    const visibleDots = between(this.cycle, 1, 256);
-    if (visibleDots)
-      this.pixel();
-    if (visibleDots || between(this.cycle, 321, 336))
-      this.readVRAM();
-    if (this.cycle === 340)
-      this._fetchNameTableByte();
-    if (this.cycle === 256) {
-      this.pixel();
-      this._fetchBGHi();
-      this.incrY();
-    }
-    if (this.cycle === 257) {
-      this.pixel();
-      this.reloadShiftRegisters();
-      this.reloadX();
-    }
+  frameSwap() {
+    this.framebuffer = this.framebufferStuff;
+    this.framebufferStuff = [];
   }
   step() {
-    if (this.scanline === -1)
-      this.scanlinePre();
-    else if (this.scanline === 241)
-      this.scanlineNMI();
-    else if (between(this.scanline, 0, 239))
-      this.scanlineStep();
+    const isRendering = this.renderingEnabled();
+    const preScanline = this.scanline == -1;
+    const visibleLines = between(this.scanline, 0, 239);
+    const visibleCycles = between(this.cycle, 1, 256);
+    const bgFetchLines = visibleLines || preScanline;
+    const bgFetchCycles = visibleCycles || between(this.cycle, 321, 336);
+
+    if (this.renderingEnabled()) {
+      if (visibleLines && visibleCycles)
+        this.pixel();
+      if (bgFetchLines && bgFetchCycles)
+        this.fetchBackground();
+      if (preScanline && between(this.cycle, 280, 304))
+        this.copyY();
+      if (preScanline || visibleLines) {
+        if (this.cycle === 256)
+          this.incrY();
+        if (this.cycle === 257)
+          this.copyX();
+      }
+      if (this.scanline === 240 && this.cycle === 0)
+        this.frameSwap();
+    }
+
+    if (this.scanline === 241 && this.cycle === 1)
+      this.vBlankStart();
+    if (preScanline && this.cycle === 1)
+      this.vBlankEnd();
+
+    // Crank the wheel
     if (++this.cycle > 340) {
       this.cycle = 0;
       if (++this.scanline > 260) {
@@ -1729,6 +1775,8 @@ try {
     Instruction,
     Joypad,
     NES,
+    NES_COLORS,
+    NES_PALETTE,
     MemoryBus,
     PPU2c02,
     addrmodename,
