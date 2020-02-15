@@ -132,13 +132,6 @@ const DbgChr = styled.canvas`
   height: 128px;
 `;
 
-const PATTERN_TABLE_COLORS = {
-  0: { r: 0x00, g: 0x00, b: 0x00 },
-  1: { r: 0x14, g: 0x12, b: 0xA7 },
-  2: { r: 0xFE, g: 0xCC, b: 0xC5 },
-  3: { r: 0xB5, g: 0x31, b: 0x20 },
-};
-
 function drawPatternTablePixels(canvas, emulator, addr) {
   let [x, y, width, height] = [0, 0, 128, 128];
   const source = document.createElement('canvas');
@@ -154,9 +147,11 @@ function drawPatternTablePixels(canvas, emulator, addr) {
         const co = (lo & 0x1) + ((hi & 0x1) << 1);
         const [px, py] = [x + bit, y + line];
         const red = py * (width * 4) + (px * 4);
-        imagepx.data[red + 0] = PATTERN_TABLE_COLORS[co].r;
-        imagepx.data[red + 1] = PATTERN_TABLE_COLORS[co].g;
-        imagepx.data[red + 2] = PATTERN_TABLE_COLORS[co].b;
+        const color = emulator.ppu.readColor(0, co);
+
+        imagepx.data[red + 0] = color.r;
+        imagepx.data[red + 1] = color.g;
+        imagepx.data[red + 2] = color.b;
         imagepx.data[red + 3] = 0xFF;
       }
     }
