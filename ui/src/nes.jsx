@@ -128,8 +128,6 @@ const DbgDisList = () => {
 
 const DbgChr = styled.canvas`
   background-color: #fe0;
-  width: 128px;
-  height: 128px;
 `;
 
 function drawPatternTablePixels(canvas, emulator, addr) {
@@ -162,7 +160,7 @@ function drawPatternTablePixels(canvas, emulator, addr) {
   context.putImageData(imagepx, 0, 0);
   const dctx = canvas.getContext('2d');
   dctx.imageSmoothingEnabled = false;
-  dctx.drawImage(source, 0, 0, width*5.5, height*1.3);
+  dctx.drawImage(source, 0, 0, width*2.4, height*1.2);
 }
 
 const DbgToolBarShell = styled.div`
@@ -249,8 +247,8 @@ const Debugger = () =>  {
         <DbgDisList />
         <DbgPalettes />
         <div>
-          <DbgChr ref={canvas0Ref}></DbgChr>
-          <DbgChr ref={canvas1Ref}></DbgChr>
+          <DbgChr ref={canvas0Ref} width={128} height={128}></DbgChr>
+          <DbgChr ref={canvas1Ref} width={128} height={128}></DbgChr>
         </div>
       </div>}
     </DbgShell>
@@ -285,12 +283,10 @@ function drawScreenFrame(canvas, emulator) {
     imagepx.data[red + 3] = 0xFF;
   }
 
-  console.log('draw', emulator.ppu.framebuffer.length, 'pixels');
-
   context.putImageData(imagepx, 0, 0);
   const dctx = canvas.getContext('2d');
   dctx.imageSmoothingEnabled = false;
-  dctx.drawImage(source, 0, 0, width*2, height*2);
+  dctx.drawImage(source, 0, 0, width, height);
 }
 
 const Screen = () => {
@@ -306,12 +302,10 @@ const Screen = () => {
   return (
     <ScreenCanvasShell>
       <canvas
+        width={256}
+        height={240}
         ref={canvasRef}
-        style={{
-          width: 260,
-          height: 240,
-          border: 'solid 1px red',
-        }}>
+      >
       </canvas>
     </ScreenCanvasShell>
   );
