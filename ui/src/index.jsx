@@ -10,33 +10,10 @@ import Typography from '@material-ui/core/Typography';
 import { EmulatorProvider } from './store';
 import NES from './nes';
 
-const useStyles = makeStyles(theme => createStyles({
-  root: { padding: theme.spacing(2) },
-  title: { textAlign: 'center', padding: '20px 0' },
-}));
-
-const App = () => {
-  const classes = useStyles({});
-  return (
-    <div className={classes.root}>
-      <Grid container>
-        <Grid item xs={12}>
-          <Typography component="h1" variant="h4" className={classes.title}>
-            nes stuff
-          </Typography>
-        </Grid>
-        <Grid item xs={12}>
-          <NES />
-        </Grid>
-      </Grid>
-    </div>
-  );
-};
-
 ReactDOM.render(
   <EmulatorProvider>
     <CssBaseline />
-    <App />
+    <NES />
   </EmulatorProvider>,
   document.getElementById("mounting-point")
 );
