@@ -230,27 +230,28 @@ const Debugger = () =>  {
   }, [canvas0Ref.current, canvas1Ref.current]);
   return (
     <DbgShell>
-      {emulator.cartridge && <div>
-        <DbgToolBar />
-        <DbgRegWrap>
-          <DbgRegList>
-            <li><b>A:</b>${nes.hex(emulator.cpu.a)}</li>
-            <li><b>X:</b>${nes.hex(emulator.cpu.x)}</li>
-            <li><b>Y:</b>${nes.hex(emulator.cpu.y)}</li>
-            <li><b>P:</b>${nes.hex(emulator.cpu.p)}</li>
-            <li><b>PC:</b>${nes.hex(emulator.cpu.pc)}</li>
-            <li><b>CL:</b>${nes.hex(emulator.cpu.cycles)}</li>
-            <li><b>DT:</b>${nes.hex(emulator.ppu.cycle)}</li>
-            <li><b>SL:</b>${nes.hex(emulator.ppu.scanline)}</li>
-          </DbgRegList>
-        </DbgRegWrap>
-        <DbgDisList />
-        <DbgPalettes />
-        <div>
-          <DbgChr ref={canvas0Ref} width={128} height={128}></DbgChr>
-          <DbgChr ref={canvas1Ref} width={128} height={128}></DbgChr>
-        </div>
-      </div>}
+      {emulator.cartridge &&
+       <div>
+         <DbgToolBar />
+         <DbgRegWrap>
+           <DbgRegList>
+             <li><b>A:</b>${nes.hex(emulator.cpu.a)}</li>
+             <li><b>X:</b>${nes.hex(emulator.cpu.x)}</li>
+             <li><b>Y:</b>${nes.hex(emulator.cpu.y)}</li>
+             <li><b>P:</b>${nes.hex(emulator.cpu.p)}</li>
+             <li><b>PC:</b>${nes.hex(emulator.cpu.pc)}</li>
+             <li><b>CL:</b>${nes.hex(emulator.cpu.cycles)}</li>
+             <li><b>DT:</b>${nes.hex(emulator.ppu.cycle)}</li>
+             <li><b>SL:</b>${nes.hex(emulator.ppu.scanline)}</li>
+           </DbgRegList>
+         </DbgRegWrap>
+         <DbgDisList />
+         <DbgPalettes />
+         <div>
+           <DbgChr ref={canvas0Ref} width={128} height={128}></DbgChr>
+           <DbgChr ref={canvas1Ref} width={128} height={128}></DbgChr>
+         </div>
+       </div>}
     </DbgShell>
   );
 }
