@@ -270,7 +270,7 @@ const ScreenCanvasShell = styled.div`
 `;
 
 function drawScreenFrame(canvas, emulator) {
-  const [width, height] = [260, 240];
+  const [width, height] = [256, 240];
   const source = document.createElement('canvas');
   const context = source.getContext('2d');
   const imagepx = context.createImageData(width, height);
