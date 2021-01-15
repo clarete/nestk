@@ -89,7 +89,7 @@ const DbgDisList = () => {
         width={246}
         height={230}
         rowCount={state.disassembled.length}
-        rowHeight={12}
+        rowHeight={20}
         rowRenderer={({ index, key, style }) => {
           const item = state.disassembled[index];
           const current = item.address === state.emulator.cpu.pc;
@@ -227,7 +227,7 @@ const Debugger = () =>  {
       drawPatternTablePixels(canvas0Ref.current, emulator, 0);
       drawPatternTablePixels(canvas1Ref.current, emulator, 1);
     }
-  }, [canvas0Ref.current, canvas1Ref.current]);
+  });
   return (
     <DbgShell>
       {emulator.cartridge &&
@@ -273,10 +273,11 @@ const ScreenCanvasShell = styled.div`
 function drawScreenFrame(canvas, emulator) {
   const [width, height] = [256, 240];
   const source = document.createElement('canvas');
-  const context = source.getContext('2d');
+  const context = source.getContext('2d'); context.imageSmoothingEnabled = false;
   const imagepx = context.createImageData(width, height);
 
   for (const pixel of emulator.ppu.framebuffer) {
+    // console.log(pixel.y, pixel.x);
     const red = pixel.y * (width * 4) + (pixel.x * 4);
     imagepx.data[red + 0] = pixel.color.r;
     imagepx.data[red + 1] = pixel.color.g;
@@ -290,15 +291,37 @@ function drawScreenFrame(canvas, emulator) {
   dctx.drawImage(source, 0, 0, width, height);
 }
 
+function drawScreenGrid(canvas) {
+  const [width, height, tile, block] = [256, 240, 8, 16];
+  const context = canvas.getContext('2d');
+  context.imageSmoothingEnabled = false;
+
+  for (let y = 0; y <= height; y += tile) {
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+  }
+  for (let x = 0; x <= width; x += tile) {
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+  }
+
+  context.strokeStyle = "green";
+  context.stroke();
+}
+
 const Screen = () => {
-  const { state: { emulator } } = React.useContext(store);
+  const { state: { emulator, ui } } = React.useContext(store);
   const canvasRef = React.useRef();
   React.useLayoutEffect(() => {
     if (emulator.cartridge && emulator.cartridge.chr && canvasRef.current) {
       if (emulator.ppu.framebuffer.length > 0) {
         drawScreenFrame(canvasRef.current, emulator);
+        if (ui.showGrid) {
+          drawScreenGrid(canvasRef.current);
+        }
       }
-    }
+    } /* else
+       * drawScreenGrid(canvasRef.current); */
   }, [canvasRef.current, emulator.ppu.framebuffer]);
   return (
     <ScreenCanvasShell>
@@ -361,6 +384,14 @@ const Toolbar = () => {
       <li>
         <label>
           <input
+            type="checkbox" checked={state.ui.showGrid}
+            onChange={() => dispatch({ type: 'ui.toggleShowGrid' })} />
+          Show Grid
+        </label>
+      </li>
+      <li>
+        <label>
+          <input
             type="checkbox" checked={state.ui.showDebugger}
             onChange={() => dispatch({ type: 'ui.toggleShowDebugger' })} />
           Show Debugger
@@ -372,9 +403,8 @@ const Toolbar = () => {
 
 const EmulatorShell = styled.div`
   /* Size & Spacing */
-  width: 768px;
-  margin: auto;
-  padding: 0px;
+  margin: 0;
+  padding: 0;
 `;
 
 const Emulator = () => {

@@ -958,9 +958,8 @@ class PPU2c02 {
     }
   }
   dbg(msg) {
-    console.log(`${this.scanline}@${this.cycle} ${msg}`);
+    //console.log(`${this.scanline}@${this.cycle} ${msg}`);
   }
-
   // Loopy Attributes
   coarseX() {
     return this.v & 0x1F;

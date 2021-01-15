@@ -14,13 +14,23 @@ const initialState = {
   emulator,                     // The instance of the emulator
   disassembled: [],             // Disassembled program
   breakpoints: new Set(),       // Set PC addresses for breakpoints
+  screen: {                     // Screen Dimensions & Attributes
+    width: 256,
+    height: 240,
+    scaleX: 1,
+    scaleY: 1,
+  },
   ui: {                         // UI State
     showDebugger: true,
+    showGrid: true,
     emulationState: EmulationState.NoGameLoaded,
   },
 };
 const store = createContext(initialState);
 const { Provider } = store;
+
+// So I can debug it
+window.emulator = emulator;
 
 const createReducer = () => {
   return (state, action) => {
@@ -54,7 +64,7 @@ const createReducer = () => {
 
     /* Crank the wheel on the running of the emulation */
     case 'emu.runStep':
-      for (let i = 0; i < 1000; i++) {
+      for (let i = 0; i < 10000; i++) {
         // We've hit a breakpoint.
         if (state.breakpoints.has(state.emulator.cpu.pc)) {
           state.ui.emulationState = EmulationState.Step;
@@ -77,6 +87,13 @@ const createReducer = () => {
     case 'ui.toggleShowDebugger': {
       const newState = { ...state };
       newState.ui.showDebugger = !newState.ui.showDebugger;
+      return newState;
+    }
+
+    /* Toggle showing the grid over the screen */
+    case 'ui.toggleShowGrid': {
+      const newState = { ...state };
+      newState.ui.showGrid = !newState.ui.showGrid;
       return newState;
     }
 
